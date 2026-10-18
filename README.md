@@ -28,7 +28,7 @@ Not affiliated with LeetCode. The extension only reads the visible problem page;
 | Node.js LTS (18.18 or newer) | Free | Running the backend |
 | Google AI Studio account + API key (https://aistudio.google.com) | Free tier exists with limits; check current limits and terms | AI answers |
 | GitHub account | Free | Hosting code and the privacy-policy page |
-| Vercel account (or similar Node host) | Check current plan limits | Public backend |
+| Render account (or similar Node host) | Free instances may sleep when idle; check current terms | Public backend |
 | Chrome Web Store developer account | One-time registration fee (about 5 USD; confirm in the dashboard) | Publishing |
 
 You do **not** need any LeetCode API.
@@ -111,21 +111,15 @@ Already verified by automated tests in this repo (run them yourself, see "Comman
 
 **Honest limits of anonymous access:** anyone can create a new install ID by clearing extension storage or calling `/api/session` with a script. Per-IP limits slow this down but shared networks (schools, offices) share a quota, and people with many IPs can get around it. The global daily cap is your real cost protection. Counters live in server memory: they reset on restart and are not shared across multiple instances. If abuse appears: lower the limits, set `AI_ENABLED=false`, or add real sign-in (for example Google sign-in) and a database or Redis for counters.
 
-## 5. Deploy the backend on Vercel
+## 5. Deploy the backend on Render
 
-1. Import this GitHub repository as a new Vercel project. Set **Root Directory** to `server`; Vercel detects the Express app there. Keep the default Node.js build settings.
-2. Add these **Production** environment variables in Vercel (never commit them):
-   - `GEMINI_API_KEY` — copy it from your local `server/.env` into the Vercel dashboard.
-   - `GEMINI_MODEL` — use the exact model configured in AI Studio.
-   - `TOKEN_SECRET` — a random value at least 32 characters long.
-   - `ALLOWED_EXTENSION_IDS` — the Chrome extension ID (see below).
-   - `AI_ENABLED=true`; Vercel sets `NODE_ENV=production` automatically.
-   - Optionally copy limits from `server/.env.example`.
-3. Deploy and check `https://<your-project>.vercel.app/health`; it should return JSON with `ok: true`.
-4. **Extension ID for CORS:** on `chrome://extensions`, copy the extension ID and add it to `ALLOWED_EXTENSION_IDS`. For a store release, include its permanent ID too, comma separated. Redeploy after changing the variable. Production refuses other extension origins.
+1. In Render, create a **Blueprint** and connect this repository: `sumitsingh-cyber/Leet_CodeMate-AI`. The checked-in `render.yaml` sets the service root to `server`, uses `npm install` / `npm start`, and generates `TOKEN_SECRET`.
+2. In the Render service's environment settings, set `GEMINI_API_KEY` and `GEMINI_MODEL` using the values from your local `server/.env`. Keep both only in Render's environment settings, never in Git.
+3. Set `ALLOWED_EXTENSION_IDS` to the extension ID shown at `chrome://extensions`. For a store release, include its permanent ID too, comma separated. Production blocks other extension origins. The Blueprint already sets `NODE_ENV=production` and `AI_ENABLED=true`; it also provides the default request limits.
+4. Deploy and check `https://<your-service>.onrender.com/health`; it should return JSON with `ok: true`.
 5. Put the deployed HTTPS URL in `extension/config.js` (`BACKEND_URL`), reload the extension in Chrome, and test with your local server stopped.
 
-Vercel server instances can restart or scale independently. The usage counters are in memory, so they can reset on restart and are not shared across instances; the global daily cap is therefore not a durable billing limit. Review Vercel's current function limits for your plan.
+Render instances can restart. Usage counters are held in memory, so they reset on restart and are not shared between multiple instances; the global daily cap is not a durable billing limit.
 
 **Cost control:** set a spending cap/budget alert in your Google Cloud / AI Studio project, keep `GLOBAL_DAILY_LIMIT` modest, and watch the Render logs. Pricing and free-tier limits change, so check Google's current pages.
 
