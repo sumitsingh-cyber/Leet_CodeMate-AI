@@ -18,7 +18,7 @@ services:
       - key: GEMINI_MODEL
         sync: false          # a model your key can use (see Google AI Studio)
       - key: ALLOWED_EXTENSION_IDS
-        sync: false          # your extension ID(s), comma separated
+        value: bbopnapfnfhhfcjjmbjimcolekkfddlc # add the store ID too when available
       - key: AI_ENABLED
         value: "true"
       - key: PER_INSTALL_DAILY_LIMIT

@@ -115,7 +115,7 @@ Already verified by automated tests in this repo (run them yourself, see "Comman
 
 1. In Render, create a **Blueprint** and connect this repository: `sumitsingh-cyber/Leet_CodeMate-AI`. The checked-in `render.yaml` sets the service root to `server`, uses `npm install` / `npm start`, and generates `TOKEN_SECRET`.
 2. In the Render service's environment settings, set `GEMINI_API_KEY` and `GEMINI_MODEL` using the values from your local `server/.env`. Keep both only in Render's environment settings, never in Git.
-3. Set `ALLOWED_EXTENSION_IDS` to the extension ID shown at `chrome://extensions`. For a store release, include its permanent ID too, comma separated. Production blocks other extension origins. The Blueprint already sets `NODE_ENV=production` and `AI_ENABLED=true`; it also provides the default request limits.
+3. The Blueprint is preconfigured with the unpacked extension ID. For a store release, add its permanent ID to `ALLOWED_EXTENSION_IDS`, comma separated. Production blocks other extension origins. The Blueprint already sets `NODE_ENV=production` and `AI_ENABLED=true`; it also provides the default request limits.
 4. Deploy and check `https://<your-service>.onrender.com/health`; it should return JSON with `ok: true`.
 5. Put the deployed HTTPS URL in `extension/config.js` (`BACKEND_URL`), reload the extension in Chrome, and test with your local server stopped.
 
