@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CodeMate AI</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="1" y="1" width="30" height="30" rx="8" fill="#151b2c" stroke="#35d6c4" stroke-width="1.5"/>
+        <path d="M13 10l-6 6 6 6M19 10l6 6-6 6" fill="none" stroke="#35d6c4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M17.5 9l-3 14" stroke="#ffc45c" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+      <span class="brand-name">CodeMate AI</span>
+    </div>
+    <button id="settingsBtn" class="icon-btn" type="button" aria-label="Settings" aria-expanded="false" aria-controls="settings"></button>
+  </header>
+
+  <section id="settings" class="settings" hidden>
+    <label for="defaultLang">Default language</label>
+    <select id="defaultLang"></select>
+    <p class="fine">Sends the problem text (and your code, for Review and Optimize) to the CodeMate AI server and Google Gemini only when you click a section. Nothing is sent when you just open a page.</p>
+    <p class="fine">Server: <span id="serverUrl"></span></p>
+  </section>
+
+  <main>
+    <section class="problem" aria-labelledby="problemLabel">
+      <div class="problem-head">
+        <span id="statusDot" class="dot" aria-hidden="true"></span>
+        <span id="problemLabel" class="label">Current problem</span>
+        <button id="refreshBtn" class="icon-btn small" type="button" aria-label="Re-read the problem"></button>
+      </div>
+      <h1 id="problemTitle" class="problem-title">Looking for a problem...</h1>
+      <p id="problemStatus" class="problem-status" role="status"></p>
+    </section>
+
+    <div class="lang-row">
+      <label for="lang">Language</label>
+      <select id="lang"></select>
+    </div>
+
+    <nav id="grid" class="grid" aria-label="Sections"></nav>
+
+    <section id="result" class="result" aria-labelledby="resultTitle">
+      <div class="result-head">
+        <h2 id="resultTitle">Result</h2>
+        <div class="result-actions">
+          <button id="copyBtn" class="icon-btn" type="button" aria-label="Copy result" disabled></button>
+          <button id="clearBtn" class="icon-btn" type="button" aria-label="Clear result" disabled></button>
+        </div>
+      </div>
+      <div id="resultBody" class="result-body" aria-live="polite"></div>
+      <div id="resultExtra" class="result-extra"></div>
+    </section>
+  </main>
+
+  <footer class="foot"><span id="quota">Free daily limit applies.</span></footer>
+
+  <script src="config.js"></script>
+  <script src="markdown.js"></script>
+  <script src="api.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

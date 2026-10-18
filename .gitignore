@@ -1,0 +1,15 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+# Dependencies and build output
+node_modules/
+dist/
+*.zip
+.vercel/
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json

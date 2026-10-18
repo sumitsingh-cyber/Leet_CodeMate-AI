@@ -1,0 +1,8 @@
+{
+  "name": "codemate-ai-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Headless end-to-end test: runs the side panel + content script in jsdom against the real backend in MOCK_AI mode. Does not replace testing in real Chrome.",
+  "scripts": { "test": "node e2e.mjs" },
+  "devDependencies": { "jsdom": "^26.0.0" }
+}

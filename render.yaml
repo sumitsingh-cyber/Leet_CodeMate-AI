@@ -1,0 +1,29 @@
+# Optional Render Blueprint. You can also create the service by hand (see README).
+services:
+  - type: web
+    name: codemate-ai-server
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TOKEN_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false          # paste in the Render dashboard, never in this file
+      - key: GEMINI_MODEL
+        sync: false          # a model your key can use (see Google AI Studio)
+      - key: ALLOWED_EXTENSION_IDS
+        sync: false          # your extension ID(s), comma separated
+      - key: AI_ENABLED
+        value: "true"
+      - key: PER_INSTALL_DAILY_LIMIT
+        value: "40"
+      - key: PER_IP_DAILY_LIMIT
+        value: "150"
+      - key: GLOBAL_DAILY_LIMIT
+        value: "1500"
