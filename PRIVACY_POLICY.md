@@ -1,4 +1,4 @@
-# CodeMate AI Privacy Policy
+﻿# CodeMate AI Privacy Policy
 
 _Last updated: [DATE]. Operator: [YOUR NAME OR ORGANISATION]. Contact: [YOUR EMAIL]._
 _Template: fill the bracketed parts and re-check the third-party statements against the providers' current terms before publishing._
@@ -6,18 +6,16 @@ _Template: fill the bracketed parts and re-check the third-party statements agai
 CodeMate AI is a Chrome extension that helps you study LeetCode problems with AI. It is not affiliated with LeetCode.
 
 ## What the extension reads
-Only when you open a LeetCode problem page (`leetcode.com/problems/...`), the extension reads that page's **problem title, problem statement (including examples and constraints), and the code currently in the editor** so it can show the problem name and be ready to help. This stays inside your browser until you click a section button.
+On a LeetCode problem page, the extension reads visible page content when the side panel opens and again before each action. It reads the title, visible statement, examples, constraints, table schemas, tags, difficulty, editor language, starter code, and current editor code. It does not read hidden problem data or interact with submissions.
 
 ## What is sent, and when
-Nothing is sent when you just open a page. When you click a section button, the extension sends to the CodeMate AI server:
-- the problem title and statement and the selected programming language;
-- your **editor code**, only for **Review My Code** and **Optimize My Code**;
-- your **question and up to the last 6 messages** of this problem's chat, only for **Ask Follow-up**;
-- the hint level, only for **Hint**;
-- an anonymous **install ID** and a short-lived session token (random values, not linked to your name, email or Google account).
+Nothing is sent just by opening a page. When you request an AI answer, the extension sends the current visible problem context and current editor code to the CodeMate AI server for every section, including Explain, Hint, Follow-up, Review, and Optimize. It also sends:
+- the selected language and locally inferred problem category and language;
+- your question and up to the last 6 chat turns, only for Ask Follow-up;
+- the requested hint level, only for Hint;
+- an anonymous install ID and short-lived session token (random values, not linked to your name, email or Google account).
 
-The server forwards the prompt to the **Google Gemini API** to generate the answer, and returns the answer to you.
-
+The extension re-reads the page and editor after the AI response and discards the response if the page or code changed while it was being generated.
 ## What we store
 - **On your device** (Chrome extension storage): the anonymous install ID, the session token, and your language preference. Generated answers, hints and chat are kept **in memory only** and disappear when you close the panel.
 - **On our server:** we do **not** save problem text, your code, your questions or the AI's answers. Usage counters (number of requests per install ID and IP address) are held **in server memory** to enforce daily limits and are cleared at restart or the next UTC day. Server logs contain only technical metadata (operation type, language, response time, error code), not content.

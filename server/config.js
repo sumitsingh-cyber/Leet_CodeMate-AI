@@ -45,6 +45,7 @@ export function loadConfig() {
     maxQuestionChars: int('MAX_QUESTION_CHARS', 1000),
     maxOutputTokens: int('MAX_OUTPUT_TOKENS', 2048),
     aiTimeoutMs: int('AI_TIMEOUT_MS', 45000),
+    verifyRetry: env.VERIFY_RETRY === 'true',
   };
 
   if (!cfg.tokenSecret) {

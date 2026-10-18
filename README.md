@@ -1,6 +1,6 @@
-# CodeMate AI
+﻿# CodeMate AI
 
-A Chrome extension that opens a **narrow side panel** next to a LeetCode problem. Ten buttons (Explain Problem, Hint, Approach, Solution Code, Dry Run, Complexity, Edge Cases, Review My Code, Optimize My Code, Ask Follow-up) each generate **only that section**, on click, through your own backend that calls the **Google Gemini API**.
+A Chrome extension that opens a **narrow side panel** next to a LeetCode problem. Ten buttons (Explain Problem, Hint, Approach, Solution Code, Dry Run, Complexity, Edge Cases, Review My Code, Optimize My Code, Ask Follow-up) generate **only that section** on demand through your backend and Google Gemini. Auto mode classifies visible algorithm, SQL, Pandas, and shell problems and selects a language from the editor or schema.
 
 ```
 Chrome extension (side panel) --HTTPS--> your Express backend --> Google Gemini API
@@ -84,7 +84,7 @@ No key yet? Set `MOCK_AI=true` in `.env` to get canned answers (refused in produ
 5. Click the CodeMate AI icon. The panel opens on the right. The problem title appears with a green dot.
 6. Click a section button. Only that section is generated.
 
-`extension/config.js` points to `http://localhost:3000` for development. After you edit extension files, press the reload arrow on `chrome://extensions`.
+The configured HTTPS Render backend URL is kept in extension/config.js. For local development, temporarily set BACKEND_URL to http://localhost:3000 and restore the deployed URL before packaging. Reload the extension on chrome://extensions after edits.
 
 ## 3. Test checklist
 
@@ -106,7 +106,7 @@ Already verified by automated tests in this repo (run them yourself, see "Comman
 
 - The API key exists only on the server. `node scripts/scan-secrets.mjs` checks the repo and that `.env` is not tracked.
 - **CORS is not authentication.** The server issues an anonymous, signed **install ID**, exchanged for a **1-hour token**. Every AI call needs a valid token and passes: per-install per-minute limit, per-install daily quota, per-IP daily quota, and a **global daily cap**. Kill switch: `AI_ENABLED=false`.
-- Input is validated (operation, language, lengths). Request body limit 60 KB. Output tokens capped. 45 s AI timeout.
+- Input is validated (operation, classification, examples, schema, language, and lengths). Structured code answers require statement evidence and matching hand-checks for every parsed example; failed verification may retry once when VERIFY_RETRY=true. Request body limit 60 KB. Output tokens capped. 45 s AI timeout.
 - Logs contain only metadata (operation, language, timing, error code). Never problem text, code, or keys.
 
 **Honest limits of anonymous access:** anyone can create a new install ID by clearing extension storage or calling `/api/session` with a script. Per-IP limits slow this down but shared networks (schools, offices) share a quota, and people with many IPs can get around it. The global daily cap is your real cost protection. Counters live in server memory: they reset on restart and are not shared across multiple instances. If abuse appears: lower the limits, set `AI_ENABLED=false`, or add real sign-in (for example Google sign-in) and a database or Redis for counters.
@@ -117,7 +117,7 @@ Already verified by automated tests in this repo (run them yourself, see "Comman
 2. In the Render service's environment settings, set `GEMINI_API_KEY` and `GEMINI_MODEL` using the values from your local `server/.env`. Keep both only in Render's environment settings, never in Git.
 3. The Blueprint is preconfigured with the unpacked extension ID. For a store release, add its permanent ID to `ALLOWED_EXTENSION_IDS`, comma separated. Production blocks other extension origins. The Blueprint already sets `NODE_ENV=production` and `AI_ENABLED=true`; it also provides the default request limits.
 4. Deploy and check `https://<your-service>.onrender.com/health`; it should return JSON with `ok: true`.
-5. Put the deployed HTTPS URL in `extension/config.js` (`BACKEND_URL`), reload the extension in Chrome, and test with your local server stopped.
+The configured HTTPS Render backend URL is kept in extension/config.js. For local development, temporarily set BACKEND_URL to http://localhost:3000 and restore the deployed URL before packaging. Reload the extension on chrome://extensions after edits.
 
 Render instances can restart. Usage counters are held in memory, so they reset on restart and are not shared between multiple instances; the global daily cap is not a durable billing limit.
 

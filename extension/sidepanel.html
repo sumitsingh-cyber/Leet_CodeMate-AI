@@ -22,7 +22,8 @@
   <section id="settings" class="settings" hidden>
     <label for="defaultLang">Default language</label>
     <select id="defaultLang"></select>
-    <p class="fine">Sends the problem text (and your code, for Review and Optimize) to the CodeMate AI server and Google Gemini only when you click a section. Nothing is sent when you just open a page.</p>
+    <p class="fine">On each action, sends the visible problem context and current editor code to the CodeMate AI server and Google Gemini. Nothing is sent just by opening a page.</p>
+    <div id="contextPreview" class="context-preview" role="status"></div>
     <p class="fine">Server: <span id="serverUrl"></span></p>
   </section>
 
@@ -62,6 +63,7 @@
   <script src="config.js"></script>
   <script src="markdown.js"></script>
   <script src="api.js"></script>
+  <script src="classify.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

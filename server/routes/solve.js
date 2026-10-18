@@ -8,12 +8,9 @@ const fail = (res, status, code, message, extra = {}) =>
 
 export function solveRoute(cfg, usage, ai) {
   const router = Router();
-
   router.post('/solve', requireToken(cfg), async (req, res) => {
-    // 1. Kill switch
     if (!cfg.aiEnabled) return fail(res, 503, 'AI_DISABLED', 'AI features are temporarily turned off. Please try again later.');
 
-    // 2. Validate input
     let input;
     try {
       input = validateSolveBody(req.body, cfg);
@@ -22,11 +19,10 @@ export function solveRoute(cfg, usage, ai) {
       throw err;
     }
 
-    // 3. Per-minute rate limit, then daily quotas
-    const rate = usage.hit(`min:${req.installId}`, cfg.perInstallPerMinute, 60 * 1000);
+    const rate = usage.hit('min:' + req.installId, cfg.perInstallPerMinute, 60 * 1000);
     if (!rate.ok) {
       res.set('Retry-After', String(rate.retryAfterSeconds));
-      return fail(res, 429, 'RATE_LIMITED', `Slow down a little. Try again in ${rate.retryAfterSeconds}s.`);
+      return fail(res, 429, 'RATE_LIMITED', 'Slow down a little. Try again in ' + rate.retryAfterSeconds + 's.');
     }
     const reservation = usage.reserve(req.installId, req.ip);
     if (!reservation.ok) {
@@ -38,23 +34,32 @@ export function solveRoute(cfg, usage, ai) {
       return fail(res, 429, reservation.reason, messages[reservation.reason], { quota: usage.quota(req.installId) });
     }
 
-    // 4. Call the AI (log metadata only, never code or problem text)
     const started = Date.now();
     try {
-      const text = await ai.generate(input);
-      console.log(`[solve] op=${input.operation} lang=${input.language} ms=${Date.now() - started} ok`);
-      return res.json({ ok: true, operation: input.operation, text, quota: usage.quota(req.installId) });
+      const result = await ai.generate(input);
+      const answer = typeof result === 'string' ? { text: result } : result;
+      console.log('[solve] op=' + input.operation + ' category=' + input.category + ' lang=' + input.language + ' ms=' + (Date.now() - started) + ' ok');
+      return res.json({
+        ok: true,
+        operation: input.operation,
+        text: answer.text,
+        verifiedExamples: answer.verifiedExamples || 0,
+        category: input.category,
+        language: input.language,
+        confidence: input.classification.confidence,
+        reasons: input.classification.reasons,
+        quota: usage.quota(req.installId),
+      });
     } catch (err) {
       if (err instanceof AiError) {
         if (err.refund) usage.refund(req.installId, req.ip);
-        console.log(`[solve] op=${input.operation} ms=${Date.now() - started} error=${err.code}`);
+        console.log('[solve] op=' + input.operation + ' ms=' + (Date.now() - started) + ' error=' + err.code);
         return fail(res, err.httpStatus, err.code, err.message, { quota: usage.quota(req.installId) });
       }
       usage.refund(req.installId, req.ip);
-      console.error('[solve] unexpected error:', err?.name);
+      console.error('[solve] unexpected error:', err && err.name);
       return fail(res, 500, 'INTERNAL', 'Something went wrong on the server.');
     }
   });
-
   return router;
 }

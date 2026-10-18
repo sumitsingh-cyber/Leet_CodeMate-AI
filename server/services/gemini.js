@@ -1,31 +1,129 @@
-import { GoogleGenAI, ApiError } from '@google/genai';
-import { buildRequest } from './prompts.js';
+﻿import { GoogleGenAI, ApiError } from '@google/genai';
+import { buildRequest, buildStructuredRequest, LANGUAGES, STRUCTURED_OPERATIONS, VERIFICATION_SCHEMA } from './prompts.js';
 
 export class AiError extends Error {
   constructor(code, message, httpStatus = 502, refund = true) {
     super(message);
     this.code = code;
     this.httpStatus = httpStatus;
-    this.refund = refund; // give the quota back to the user?
+    this.refund = refund;
   }
 }
 
-export function createAi(cfg) {
+const normalizeText = (value) => String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+const escapeRegExp = (value) => value.replace(/[.*+?^\x24{}()|[\]\\]/g, '\\$&');
+const FENCE = String.fromCharCode(96).repeat(3);
+
+function expectedNames(starterCode) {
+  const source = String(starterCode || '');
+  const names = [];
+  const className = source.match(/\bclass\s+([A-Za-z_]\w*)/);
+  if (className) names.push({ kind: 'class', name: className[1] });
+  const functionName = source.match(/\b(?:def|function)\s+([A-Za-z_]\w*)\s*\(/);
+  const cLikeName = source.match(/\b(?:public|private|protected)\s+(?:static\s+)?[\w<>\[\],?&*]+\s+([A-Za-z_]\w*)\s*\(/);
+  const cppName = source.match(/\b([A-Za-z_]\w*)\s*\([^;{}]*\)\s*(?:\{|;)/);
+  const method = functionName || cLikeName || cppName;
+  if (method && !['if', 'for', 'while', 'switch'].includes(method[1])) names.push({ kind: 'function', name: method[1] });
+  return names;
+}
+
+export function validateGeneratedCode(input, answer) {
+  const code = String(answer.code || '').trim();
+  if (!code) return { ok: false, reason: 'The code field is empty.' };
+  if (new RegExp('^\\s*' + FENCE).test(code)) return { ok: false, reason: 'The code field contains Markdown fences.' };
+
+  if (input.category === 'sql') {
+    if (/\bclass\s+\w+|\bdef\s+\w+\s*\(|#include/i.test(code)) return { ok: false, reason: 'The SQL answer has a non-SQL language wrapper.' };
+    const allowedStart = /^\s*(?:SELECT|WITH)\b/i.test(code);
+    const explicitMutation = /^\s*(?:UPDATE|DELETE)\b/i.test(code) && /\b(?:update|delete)\b/i.test(input.statement);
+    if (!allowedStart && !explicitMutation) return { ok: false, reason: 'The SQL answer must start with SELECT or WITH unless the statement explicitly requests a mutation.' };
+    const hasKnownTable = input.schema.some((table) => new RegExp('(?:^|[^A-Za-z0-9_])' + escapeRegExp(table.table) + '(?:$|[^A-Za-z0-9_])', 'i').test(code));
+    if (!hasKnownTable) return { ok: false, reason: 'The SQL answer does not reference a table in the supplied schema.' };
+    return { ok: true };
+  }
+
+  if (input.category === 'algorithms') {
+    if (/^\s*(?:SELECT|WITH)\b/i.test(code)) return { ok: false, reason: 'An algorithms answer cannot be SQL-only output.' };
+    const names = expectedNames(input.starterCode || input.editorCode);
+    for (const item of names) {
+      const escaped = escapeRegExp(item.name);
+      const pattern = item.kind === 'class'
+        ? new RegExp('\\bclass\\s+' + escaped + '\\b')
+        : new RegExp('\\b' + escaped + '\\s*\\(');
+      if (!pattern.test(code)) return { ok: false, reason: 'The answer did not keep the starter code ' + item.kind + ' name "' + item.name + '".' };
+    }
+  }
+
+  if (input.category === 'pandas') {
+    if (/^\s*(?:SELECT|WITH)\b/i.test(code) || /\bclass\s+Solution\b/.test(code)) return { ok: false, reason: 'A Pandas answer must use the supplied DataFrame function, not SQL or a LeetCode class.' };
+    const names = expectedNames(input.starterCode || input.editorCode).filter((item) => item.kind === 'function');
+    for (const item of names) {
+      if (!new RegExp('\\b' + escapeRegExp(item.name) + '\\s*\\(').test(code)) return { ok: false, reason: 'The Pandas answer did not keep the starter function "' + item.name + '".' };
+    }
+  }
+  return { ok: true };
+}
+
+export function verifyStructuredAnswer(input, answer) {
+  if (!answer || typeof answer !== 'object') return { ok: false, reason: 'The response was not a JSON object.' };
+  if (!Array.isArray(answer.statementEvidence) || answer.statementEvidence.length === 0) return { ok: false, reason: 'No statement evidence was returned.' };
+  const statement = normalizeText(input.statement);
+  for (const phrase of answer.statementEvidence) {
+    if (typeof phrase !== 'string' || phrase.trim().length < 3 || !statement.includes(normalizeText(phrase))) return { ok: false, reason: 'Statement evidence was not found in the current statement.' };
+  }
+  if (!Array.isArray(answer.requirements) || answer.requirements.length === 0 || answer.requirements.some((item) => typeof item !== 'string' || !item.trim())) return { ok: false, reason: 'The response did not summarize the problem requirements.' };
+  if (!Array.isArray(answer.exampleChecks)) return { ok: false, reason: 'The response did not check the examples.' };
+  const checks = new Map();
+  for (const check of answer.exampleChecks) {
+    if (!check || !Number.isInteger(check.example) || checks.has(check.example)) return { ok: false, reason: 'Example checks were malformed or duplicated.' };
+    checks.set(check.example, check);
+  }
+  for (const example of input.examples) {
+    const check = checks.get(example.index);
+    if (!check) return { ok: false, reason: 'Example ' + example.index + ' was not checked.' };
+    if (normalizeText(check.expected) !== normalizeText(example.output)) return { ok: false, reason: 'Example ' + example.index + ' expected output did not match the statement.' };
+    if (typeof check.got !== 'string' || !check.got.trim()) return { ok: false, reason: 'Example ' + example.index + ' has no traced output.' };
+    if (normalizeText(check.got) !== normalizeText(example.output)) return { ok: false, reason: 'Example ' + example.index + ' hand-traced output did not match the expected output.' };
+    if (check.match !== true) return { ok: false, reason: 'Example ' + example.index + ' did not match: expected ' + example.output + ', got ' + check.got + '.' };
+  }
+  if (checks.size !== input.examples.length) return { ok: false, reason: 'The response included checks that do not match the parsed examples.' };
+  return validateGeneratedCode(input, answer);
+}
+
+export function formatStructuredAnswer(input, answer) {
+  const code = String(answer.code || '').trim();
+  if (input.operation === 'solution') return code;
+  const label = input.operation === 'review' ? 'Code review' : 'Improved solution';
+  const lines = ['## ' + label, '', ...answer.requirements.map((item) => '- ' + item), '', '## Statement evidence'];
+  for (const phrase of answer.statementEvidence) lines.push('- ' + phrase);
+  lines.push('', '## Example checks', '', '| Example | Expected | Hand-traced result | Match |', '|---:|---|---|:---:|');
+  for (const check of answer.exampleChecks) lines.push('| ' + check.example + ' | ' + check.expected.replace(/\|/g, '\\|').replace(/\n/g, '<br>') + ' | ' + check.got.replace(/\|/g, '\\|').replace(/\n/g, '<br>') + ' | Yes |');
+  if (code) lines.push('', input.operation === 'review' ? '## Suggested code' : '## Improved code', '', FENCE + (LANGUAGES[input.language].fence || '') + '\n' + code + '\n' + FENCE);
+  lines.push('', '> Checked by AI from the supplied examples; this code was not executed.');
+  return lines.join('\n');
+}
+
+function mockStructuredAnswer(input) {
+  const code = input.category === 'sql' ? 'SELECT * FROM ' + input.schema[0].table : (input.starterCode || input.editorCode || 'def solution():\n    return None');
+  return {
+    statementEvidence: [input.statement.slice(0, Math.min(80, input.statement.length))],
+    requirements: ['Mock requirements grounded in the supplied problem context.'],
+    exampleChecks: input.examples.map((example) => ({ example: example.index, expected: example.output, got: example.output, match: true })),
+    code,
+  };
+}
+
+export function createAi(cfg, { clientFactory } = {}) {
   let client;
+  const getClient = () => {
+    if (!client) client = clientFactory ? clientFactory(cfg.geminiApiKey) : new GoogleGenAI({ apiKey: cfg.geminiApiKey });
+    return client;
+  };
 
-  async function generate(input) {
-    if (cfg.mockAi) {
-      return `## Mock answer (${input.operation})\n\nThis is a development-only response for **${input.title}**.\n\n| Step | Note |\n|---|---|\n| 1 | Mock row |\n\n\`\`\`${input.language}\nclass Solution {};\n\`\`\`\n`;
-    }
-    if (!cfg.geminiApiKey || !cfg.geminiModel) {
-      throw new AiError('SERVER_MISCONFIGURED', 'The AI service is not configured on the server.', 503);
-    }
-    client ??= new GoogleGenAI({ apiKey: cfg.geminiApiKey });
-
-    const { systemInstruction, contents } = buildRequest(input);
+  async function callModel(systemInstruction, contents, input, outputConfig = {}) {
     let response;
     try {
-      response = await client.models.generateContent({
+      response = await getClient().models.generateContent({
         model: cfg.geminiModel,
         contents,
         config: {
@@ -33,35 +131,56 @@ export function createAi(cfg) {
           maxOutputTokens: cfg.maxOutputTokens,
           temperature: input.operation === 'solution' || input.operation === 'dryrun' ? 0.2 : 0.5,
           abortSignal: AbortSignal.timeout(cfg.aiTimeoutMs),
+          ...outputConfig,
         },
       });
     } catch (err) {
-      // Never log the request (it contains user code) or the API key.
       const status = err instanceof ApiError ? err.status : undefined;
-      console.error(`[gemini] request failed: status=${status ?? 'n/a'} name=${err?.name}`);
-      if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
-        throw new AiError('AI_TIMEOUT', 'The AI took too long to answer. Please try again.', 504);
-      }
+      console.error('[gemini] request failed: status=' + (status ?? 'n/a') + ' name=' + (err && err.name));
+      if (err && (err.name === 'TimeoutError' || err.name === 'AbortError')) throw new AiError('AI_TIMEOUT', 'The AI took too long to answer. Please try again.', 504);
       if (status === 429) throw new AiError('AI_QUOTA', 'The AI service is busy or its quota is used up. Try again later.', 503);
-      if (status === 400 || status === 401 || status === 403 || status === 404) {
-        // Bad key, wrong model name, or API not enabled: a server-side problem.
-        throw new AiError('SERVER_MISCONFIGURED', 'The AI service is not configured correctly on the server.', 503);
-      }
+      if ([400, 401, 403, 404].includes(status)) throw new AiError('SERVER_MISCONFIGURED', 'The AI service is not configured correctly on the server.', 503);
       throw new AiError('AI_UNAVAILABLE', 'The AI service is temporarily unavailable. Please try again.', 503);
     }
+    if (response && response.promptFeedback && response.promptFeedback.blockReason) throw new AiError('AI_BLOCKED', 'The AI declined to answer this request.', 422, false);
+    const text = response && response.text ? response.text.trim() : '';
+    if (!text) throw new AiError('AI_EMPTY', 'The AI returned an empty answer. Please try again.', 502);
+    return text;
+  }
 
-    const blockReason = response?.promptFeedback?.blockReason;
-    if (blockReason) {
-      throw new AiError('AI_BLOCKED', 'The AI declined to answer this request.', 422, false);
+  async function generate(input) {
+    if (!cfg.mockAi && (!cfg.geminiApiKey || !cfg.geminiModel)) throw new AiError('SERVER_MISCONFIGURED', 'The AI service is not configured on the server.', 503);
+    if (!STRUCTURED_OPERATIONS.includes(input.operation)) {
+      if (cfg.mockAi) return { text: '## Mock answer (' + input.operation + ')\n\nContext received for **' + input.title + '** in ' + input.language + '.', verifiedExamples: 0 };
+      const request = buildRequest(input);
+      return { text: await callModel(request.systemInstruction, request.contents, input), verifiedExamples: 0 };
     }
-    const text = response?.text?.trim();
-    if (!text) {
-      const finish = response?.candidates?.[0]?.finishReason;
-      if (finish && finish !== 'STOP') throw new AiError('AI_BLOCKED', 'The AI could not complete this answer. Try again.', 422);
-      throw new AiError('AI_EMPTY', 'The AI returned an empty answer. Please try again.', 502);
+
+    const maxAttempts = cfg.verifyRetry ? 2 : 1;
+    let feedback = '';
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      let raw;
+      if (cfg.mockAi) raw = JSON.stringify(mockStructuredAnswer(input));
+      else {
+        const request = buildStructuredRequest({ ...input, verificationFeedback: feedback });
+        raw = await callModel(request.systemInstruction, request.contents, input, {
+          responseMimeType: 'application/json',
+          responseJsonSchema: VERIFICATION_SCHEMA,
+        });
+      }
+      let answer;
+      try {
+        answer = JSON.parse(String(raw || ''));
+      } catch {
+        feedback = 'The response was not valid JSON matching the required fields.';
+        if (attempt < maxAttempts) continue;
+        throw new AiError('ANSWER_NOT_VERIFIED', 'The answer could not be verified against this problem. Please refresh the page and try again.', 422);
+      }
+      const result = verifyStructuredAnswer(input, answer);
+      if (result.ok) return { text: formatStructuredAnswer(input, answer), verifiedExamples: input.examples.length };
+      feedback = result.reason;
+      if (attempt === maxAttempts) throw new AiError('ANSWER_NOT_VERIFIED', 'The answer could not be verified against this problem. Please refresh the page and try again.', 422);
     }
-    const truncated = response?.candidates?.[0]?.finishReason === 'MAX_TOKENS';
-    return truncated ? `${text}\n\n> The answer was cut off because it reached the length limit. Ask a follow-up to continue.` : text;
   }
 
   return { generate };

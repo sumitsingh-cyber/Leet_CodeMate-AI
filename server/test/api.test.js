@@ -1,4 +1,4 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../app.js';
 import { loadConfig } from '../config.js';
@@ -25,9 +25,24 @@ function boot(overrides = {}) {
 }
 
 const problem = {
+  slug: 'two-sum',
+  number: '1',
   title: 'Two Sum',
-  description: 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
+  url: 'https://leetcode.com/problems/two-sum/',
+  difficulty: 'Easy',
+  tags: ['Array', 'Hash Table'],
+  statement: 'Given an array of integers nums and an integer target, return indices of the two numbers that add up to target.\nExample 1:\nInput: nums = [2,7], target = 9\nOutput: [0,1]\nConstraints:\n2 <= nums.length <= 10^4',
+  examples: [{ index: 1, input: 'nums = [2,7], target = 9', output: '[0,1]', explanation: '' }],
+  constraints: ['2 <= nums.length <= 10^4'],
+  schema: [],
+  starterCode: 'class Solution { public: vector<int> twoSum(vector<int>& nums, int target) { return {}; } };',
+  editorCode: 'class Solution { public: vector<int> twoSum(vector<int>& nums, int target) { return {}; } };',
+  editorLanguageLabel: 'C++',
+  editorLanguageKey: 'cpp',
+  completeness: { hasStatement: true, exampleCount: 1, hasConstraints: true, hasSchema: false, missing: [], statementLength: 190 },
+  selectedLanguage: 'auto',
   language: 'cpp',
+  category: 'algorithms',
 };
 
 test('health works and does not leak secrets', async () => {
@@ -66,10 +81,10 @@ test('rejects bad operation, bad language, missing code, long input', async () =
   const { json: s } = await call('/api/session', { method: 'POST', body: {} });
   const post = (body) => call('/api/solve', { method: 'POST', token: s.token, body });
   assert.equal((await post({ ...problem, operation: 'hack' })).status, 400);
-  assert.equal((await post({ ...problem, operation: 'explain', language: 'cobol' })).status, 400);
-  assert.equal((await post({ ...problem, operation: 'review' })).status, 400);
+  assert.equal((await post({ ...problem, operation: 'explain', selectedLanguage: 'cobol' })).status, 400);
+  assert.equal((await post({ ...problem, operation: 'review', editorCode: '' })).status, 400);
   assert.equal((await post({ ...problem, operation: 'hint', hintLevel: 9 })).status, 400);
-  assert.equal((await post({ ...problem, operation: 'explain', description: 'a'.repeat(9000) })).status, 400);
+  assert.equal((await post({ ...problem, operation: 'explain', statement: 'a'.repeat(9000) })).status, 400);
   server.close();
 });
 
