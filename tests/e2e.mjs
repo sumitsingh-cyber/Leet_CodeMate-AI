@@ -11,6 +11,7 @@ process.env.MOCK_AI = 'true';
 process.env.TOKEN_SECRET = 'y'.repeat(40);
 const { loadConfig } = await import(pathToFileURL(path.join(SRV, 'config.js')));
 const { createApp } = await import(pathToFileURL(path.join(SRV, 'app.js')));
+const { AiError, createAi } = await import(pathToFileURL(path.join(SRV, 'services', 'gemini.js')));
 
 const results = [];
 const check = (name, fn) => { try { fn(); results.push(['PASS', name]); } catch (e) { results.push(['FAIL', name + ' -> ' + e.message]); } };
@@ -74,8 +75,19 @@ Constraints:
 // ---------- 3. Side panel against the real backend (mock AI) ----------
 {
   let solveCalls = 0;
+  let timeoutNextSolve = false;
   const cfg = { ...loadConfig(), perInstallPerMinute: 100, perInstallDailyLimit: 100 };
-  const app = createApp(cfg);
+  const mockAi = createAi(cfg);
+  const ai = {
+    generate(input, options) {
+      if (timeoutNextSolve) {
+        timeoutNextSolve = false;
+        throw new AiError('AI_TIMEOUT', 'The AI response exceeded the server deadline. Your current problem context is preserved; use Try again to retry.', 504);
+      }
+      return mockAi.generate(input, options);
+    },
+  };
+  const app = createApp(cfg, { ai });
   const server = app.listen(0);
   const port = server.address().port;
 
@@ -172,9 +184,23 @@ Constraints:
 
   // follow-up
   click('followup'); await sleep(50);
-  $('#askInput').value = 'Why sort first?'; $('#askBtn').click();
-  await waitFor(() => $('.chat-q') && !win.document.querySelector('.spinner'));
-  check('panel: follow-up shows question and answer', () => { assert.equal($('.chat-q').textContent, 'Why sort first?'); assert.ok($('.chat-a').textContent.includes('Mock answer')); });
+  const followupQuestion = 'Why sort first?';
+  const beforeFollowupTimeout = solveCalls;
+  timeoutNextSolve = true;
+  $('#askInput').value = followupQuestion; $('#askBtn').click();
+  await waitFor(() => solveCalls === beforeFollowupTimeout + 1 && $('.error') && !win.document.querySelector('.spinner'));
+  check('panel: timeout shows request ID and retains follow-up question for retry', () => {
+    assert.match($('.error').textContent, /context is preserved/i);
+    assert.match($('.error').textContent, /Request ID: [0-9a-f-]{36}/i);
+    assert.equal($('#askInput').value, followupQuestion);
+    assert.ok($('#resultExtra .btn'));
+  });
+  $('#resultExtra .btn').click();
+  await waitFor(() => solveCalls === beforeFollowupTimeout + 2 && $('.chat-q') && !win.document.querySelector('.spinner'));
+  check('panel: follow-up retry keeps the question and renders the answer', () => {
+    assert.equal($('.chat-q').textContent, followupQuestion);
+    assert.ok($('.chat-a').textContent.includes('Mock answer'));
+  });
 
   // clear removes cache -> next click calls API again
   click('explain'); await sleep(50); $('#clearBtn').click(); await sleep(30);

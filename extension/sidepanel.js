@@ -186,7 +186,9 @@
       if (actionId !== state.actionId) return;
       if (error?.quota) $('quota').textContent = error.quota.remaining + ' of ' + error.quota.limit + ' free requests left today';
       const retry = operation === 'followup' ? () => performAction(operation, { question }) : () => performAction(operation, { nextHint: operation === 'hint' });
-      state.error = { message: error?.message || 'Something went wrong. Please try again.', retry };
+      const message = error?.message || 'Something went wrong. Please try again.';
+      const requestReference = error?.requestId ? ' (Request ID: ' + error.requestId + ')' : '';
+      state.error = { message: message + requestReference, retry };
     } finally {
       if (actionId === state.actionId) { state.busy = state.loading = false; render(); }
     }

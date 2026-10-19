@@ -29,7 +29,11 @@ const Api = (() => {
     try { json = await res.json(); } catch { /* non-JSON error page */ }
     if (!res.ok || !json?.ok) {
       const e = json?.error || {};
-      throw new ApiError(e.code || 'SERVER', e.message || `Server error (${res.status}).`, { status: res.status, quota: json?.quota });
+      throw new ApiError(e.code || 'SERVER', e.message || `Server error (${res.status}).`, {
+        status: res.status,
+        quota: json?.quota,
+        requestId: json?.requestId || res.headers.get('x-request-id') || undefined,
+      });
     }
     return json;
   }

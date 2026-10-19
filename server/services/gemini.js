@@ -10,6 +10,21 @@ export class AiError extends Error {
   }
 }
 
+function upstreamStatusOf(error) {
+  const candidate = error instanceof ApiError
+    ? error.status
+    : error?.status ?? error?.statusCode ?? error?.response?.status;
+  const status = Number(candidate);
+  return Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined;
+}
+
+function logModelRequest({ requestId, model, operation, attempt, promptBytes, timeoutMs, elapsedMs, upstreamStatus, ownAbortTimerFired, outcome, errorName }) {
+  const safeModel = String(model || 'unset').replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 100);
+  console.info(
+    `[gemini] requestId=${requestId} model=${safeModel} op=${operation} attempt=${attempt} promptBytes=${promptBytes} timeoutMs=${timeoutMs} elapsedMs=${elapsedMs} upstreamStatus=${upstreamStatus ?? 'n/a'} ownAbortTimerFired=${ownAbortTimerFired} outcome=${outcome} errorName=${errorName || 'none'}`,
+  );
+}
+
 const normalizeText = (value) => String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
 const escapeRegExp = (value) => value.replace(/[.*+?^\x24{}()|[\]\\]/g, '\\$&');
 const FENCE = String.fromCharCode(96).repeat(3);
@@ -120,7 +135,26 @@ export function createAi(cfg, { clientFactory } = {}) {
     return client;
   };
 
-  async function callModel(systemInstruction, contents, input, outputConfig = {}) {
+  async function callModel(systemInstruction, contents, input, outputConfig = {}, { requestId, signal, attempt = 1 } = {}) {
+    const timeoutMs = cfg.aiTimeoutMs;
+    const promptBytes = Buffer.byteLength(JSON.stringify({ systemInstruction, contents }), 'utf8');
+    const started = Date.now();
+    const controller = new AbortController();
+    let ownAbortTimerFired = false;
+    let upstreamStatus;
+    let outcome = 'success';
+    let errorName = '';
+
+    const abortFromCaller = () => {
+      if (!controller.signal.aborted) controller.abort(signal?.reason);
+    };
+    if (signal?.aborted) abortFromCaller();
+    else signal?.addEventListener('abort', abortFromCaller, { once: true });
+    const timer = setTimeout(() => {
+      ownAbortTimerFired = true;
+      controller.abort(new DOMException('Gemini generation deadline exceeded.', 'TimeoutError'));
+    }, timeoutMs);
+
     let response;
     try {
       response = await getClient().models.generateContent({
@@ -130,30 +164,79 @@ export function createAi(cfg, { clientFactory } = {}) {
           systemInstruction,
           maxOutputTokens: cfg.maxOutputTokens,
           temperature: input.operation === 'solution' || input.operation === 'dryrun' ? 0.2 : 0.5,
-          abortSignal: AbortSignal.timeout(cfg.aiTimeoutMs),
+          abortSignal: controller.signal,
           ...outputConfig,
         },
       });
+      if (ownAbortTimerFired) throw new DOMException('Gemini generation deadline exceeded.', 'TimeoutError');
+      if (signal?.aborted) throw new DOMException('The request was cancelled.', 'AbortError');
+      upstreamStatus = upstreamStatusOf(response?.sdkHttpResponse);
+      if (!response || typeof response.text !== 'string') {
+        outcome = 'malformed_response';
+        throw new AiError('AI_MALFORMED_RESPONSE', 'The AI returned an incomplete response. Your current problem context is preserved; use Try again to retry.', 502);
+      }
+      if (response.promptFeedback?.blockReason) throw new AiError('AI_BLOCKED', 'The AI declined to answer this request.', 422, false);
+      const text = response.text.trim();
+      if (!text) {
+        outcome = 'empty_response';
+        throw new AiError('AI_EMPTY', 'The AI returned an empty answer. Your current problem context is preserved; use Try again to retry.', 502);
+      }
+      return text;
     } catch (err) {
-      const status = err instanceof ApiError ? err.status : undefined;
-      console.error('[gemini] request failed: status=' + (status ?? 'n/a') + ' name=' + (err && err.name));
-      if (err && (err.name === 'TimeoutError' || err.name === 'AbortError')) throw new AiError('AI_TIMEOUT', 'The AI took too long to answer. Please try again.', 504);
-      if (status === 429) throw new AiError('AI_QUOTA', 'The AI service is busy or its quota is used up. Try again later.', 503);
-      if ([400, 401, 403, 404].includes(status)) throw new AiError('SERVER_MISCONFIGURED', 'The AI service is not configured correctly on the server.', 503);
+      if (err instanceof AiError) {
+        errorName = err.name;
+        if (outcome === 'success') outcome = err.code.toLowerCase();
+        throw err;
+      }
+      upstreamStatus = upstreamStatusOf(err);
+      errorName = err?.name || 'Error';
+      if (ownAbortTimerFired) {
+        outcome = 'timeout';
+        throw new AiError(
+          'AI_TIMEOUT',
+          `The AI response exceeded the server's ${Math.ceil(timeoutMs / 1000)}-second deadline. Your current problem context is preserved; use Try again to retry.`,
+          504,
+        );
+      }
+      if (signal?.aborted) {
+        outcome = 'cancelled';
+        throw new AiError('REQUEST_CANCELLED', 'The request was cancelled.', 499);
+      }
+      if (upstreamStatus === 429) {
+        outcome = 'upstream_error';
+        throw new AiError('AI_QUOTA', 'The AI service is busy or its quota is used up. Try again later.', 503);
+      }
+      if ([400, 401, 403, 404].includes(upstreamStatus)) {
+        outcome = 'upstream_error';
+        throw new AiError('SERVER_MISCONFIGURED', 'The AI service is not configured correctly on the server.', 503);
+      }
+      outcome = 'upstream_error';
       throw new AiError('AI_UNAVAILABLE', 'The AI service is temporarily unavailable. Please try again.', 503);
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abortFromCaller);
+      logModelRequest({
+        requestId,
+        model: cfg.geminiModel,
+        operation: input.operation,
+        attempt,
+        promptBytes,
+        timeoutMs,
+        elapsedMs: Date.now() - started,
+        upstreamStatus,
+        ownAbortTimerFired,
+        outcome,
+        errorName,
+      });
     }
-    if (response && response.promptFeedback && response.promptFeedback.blockReason) throw new AiError('AI_BLOCKED', 'The AI declined to answer this request.', 422, false);
-    const text = response && response.text ? response.text.trim() : '';
-    if (!text) throw new AiError('AI_EMPTY', 'The AI returned an empty answer. Please try again.', 502);
-    return text;
   }
 
-  async function generate(input) {
+  async function generate(input, { requestId = 'unassigned', signal } = {}) {
     if (!cfg.mockAi && (!cfg.geminiApiKey || !cfg.geminiModel)) throw new AiError('SERVER_MISCONFIGURED', 'The AI service is not configured on the server.', 503);
     if (!STRUCTURED_OPERATIONS.includes(input.operation)) {
       if (cfg.mockAi) return { text: '## Mock answer (' + input.operation + ')\n\nContext received for **' + input.title + '** in ' + input.language + '.', verifiedExamples: 0 };
       const request = buildRequest(input);
-      return { text: await callModel(request.systemInstruction, request.contents, input), verifiedExamples: 0 };
+      return { text: await callModel(request.systemInstruction, request.contents, input, {}, { requestId, signal }), verifiedExamples: 0 };
     }
 
     const maxAttempts = cfg.verifyRetry ? 2 : 1;
@@ -166,7 +249,7 @@ export function createAi(cfg, { clientFactory } = {}) {
         raw = await callModel(request.systemInstruction, request.contents, input, {
           responseMimeType: 'application/json',
           responseJsonSchema: VERIFICATION_SCHEMA,
-        });
+        }, { requestId, signal, attempt });
       }
       let answer;
       try {

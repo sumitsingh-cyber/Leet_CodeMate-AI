@@ -2,14 +2,15 @@
 import assert from 'node:assert/strict';
 import { createApp } from '../app.js';
 import { loadConfig } from '../config.js';
+import { AiError } from '../services/gemini.js';
 
-function boot(overrides = {}) {
+function boot(overrides = {}, ai) {
   process.env.MOCK_AI = 'true';
   process.env.TOKEN_SECRET = 'x'.repeat(40);
   const cfg = { ...loadConfig(), ...overrides };
-  const server = createApp(cfg).listen(0);
+  const server = createApp(cfg, { ...(ai ? { ai } : {}) }).listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
-  const call = async (path, { method = 'GET', body, token, origin } = {}) => {
+  const call = async (path, { method = 'GET', body, token, origin, signal } = {}) => {
     const res = await fetch(base + path, {
       method,
       headers: {
@@ -18,6 +19,7 @@ function boot(overrides = {}) {
         ...(origin ? { Origin: origin } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
+      signal,
     });
     return { status: res.status, headers: res.headers, json: await res.json().catch(() => null) };
   };
@@ -146,4 +148,76 @@ test('oversized body is rejected', async () => {
   const r = await call('/api/session', { method: 'POST', body: { installId: 'x'.repeat(2000) } });
   assert.equal(r.status, 413);
   server.close();
+});
+
+test('AI timeout returns a request ID and keeps the complete problem context available for retry', async () => {
+  let receivedInput;
+  let receivedOptions;
+  const ai = {
+    async generate(input, options) {
+      receivedInput = input;
+      receivedOptions = options;
+      throw new AiError('AI_TIMEOUT', 'The AI response exceeded the server deadline. Your current problem context is preserved; use Try again to retry.', 504);
+    },
+  };
+  const { server, call } = boot({ perInstallPerMinute: 100 }, ai);
+  try {
+    const { json: session } = await call('/api/session', { method: 'POST', body: {} });
+    const response = await call('/api/solve', {
+      method: 'POST',
+      token: session.token,
+      body: { ...problem, operation: 'solution' },
+    });
+
+    assert.equal(response.status, 504);
+    assert.equal(response.json.error.code, 'AI_TIMEOUT');
+    assert.match(response.json.error.message, /context is preserved/i);
+    assert.match(response.json.requestId, /^[0-9a-f-]{36}$/i);
+    assert.equal(response.headers.get('x-request-id'), response.json.requestId);
+    assert.equal(receivedOptions.requestId, response.json.requestId);
+    assert.equal(receivedOptions.signal.aborted, false);
+    assert.equal(receivedInput.statement, problem.statement);
+    assert.deepEqual(receivedInput.examples, problem.examples);
+    assert.equal(receivedInput.editorCode, problem.editorCode);
+  } finally {
+    server.close();
+  }
+});
+
+test('client disconnect aborts the in-flight AI request', async () => {
+  let receivedSignal;
+  let markStarted;
+  let markCancelled;
+  const started = new Promise((resolve) => { markStarted = resolve; });
+  const cancelled = new Promise((resolve) => { markCancelled = resolve; });
+  const ai = {
+    generate(_input, { signal }) {
+      receivedSignal = signal;
+      markStarted();
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => {
+          markCancelled();
+          reject(new AiError('REQUEST_CANCELLED', 'The request was cancelled.', 499));
+        }, { once: true });
+      });
+    },
+  };
+  const { server, call } = boot({ perInstallPerMinute: 100 }, ai);
+  try {
+    const { json: session } = await call('/api/session', { method: 'POST', body: {} });
+    const controller = new AbortController();
+    const pending = call('/api/solve', {
+      method: 'POST',
+      token: session.token,
+      body: { ...problem, operation: 'explain' },
+      signal: controller.signal,
+    });
+    await started;
+    controller.abort();
+    await assert.rejects(pending);
+    await cancelled;
+    assert.equal(receivedSignal.aborted, true);
+  } finally {
+    server.close();
+  }
 });
