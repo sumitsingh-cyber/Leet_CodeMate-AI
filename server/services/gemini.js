@@ -18,10 +18,10 @@ function upstreamStatusOf(error) {
   return Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined;
 }
 
-function logModelRequest({ requestId, model, operation, attempt, promptBytes, timeoutMs, elapsedMs, upstreamStatus, ownAbortTimerFired, outcome, errorName }) {
+function logModelRequest({ requestId, model, operation, attempt, promptBytes, timeoutMs, httpAttemptTimeoutMs, httpMaxAttempts, elapsedMs, upstreamStatus, ownAbortTimerFired, outcome, errorName }) {
   const safeModel = String(model || 'unset').replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 100);
   console.info(
-    `[gemini] requestId=${requestId} model=${safeModel} op=${operation} attempt=${attempt} promptBytes=${promptBytes} timeoutMs=${timeoutMs} elapsedMs=${elapsedMs} upstreamStatus=${upstreamStatus ?? 'n/a'} ownAbortTimerFired=${ownAbortTimerFired} outcome=${outcome} errorName=${errorName || 'none'}`,
+    `[gemini] requestId=${requestId} model=${safeModel} op=${operation} attempt=${attempt} promptBytes=${promptBytes} timeoutMs=${timeoutMs} httpAttemptTimeoutMs=${httpAttemptTimeoutMs} httpMaxAttempts=${httpMaxAttempts} elapsedMs=${elapsedMs} upstreamStatus=${upstreamStatus ?? 'n/a'} ownAbortTimerFired=${ownAbortTimerFired} outcome=${outcome} errorName=${errorName || 'none'}`,
   );
 }
 
@@ -137,6 +137,8 @@ export function createAi(cfg, { clientFactory } = {}) {
 
   async function callModel(systemInstruction, contents, input, outputConfig = {}, { requestId, signal, attempt = 1 } = {}) {
     const timeoutMs = cfg.aiTimeoutMs;
+    const httpAttemptTimeoutMs = Math.min(timeoutMs, 40000);
+    const httpMaxAttempts = 2;
     const promptBytes = Buffer.byteLength(JSON.stringify({ systemInstruction, contents }), 'utf8');
     const started = Date.now();
     const controller = new AbortController();
@@ -168,10 +170,13 @@ export function createAi(cfg, { clientFactory } = {}) {
           // Gemini can briefly return 503 while a model is overloaded. Retry
           // transient provider errors a few times within the overall timeout.
           httpOptions: {
+            // Bound each HTTP request separately so a stalled connection can
+            // be retried before the overall generation deadline expires.
+            timeout: httpAttemptTimeoutMs,
             retryOptions: {
-              attempts: 3,
+              attempts: httpMaxAttempts,
               initialDelay: 1,
-              maxDelay: 4,
+              maxDelay: 2,
               expBase: 2,
               jitter: 1,
               httpStatusCodes: [408, 429, 500, 502, 503, 504],
@@ -234,6 +239,8 @@ export function createAi(cfg, { clientFactory } = {}) {
         attempt,
         promptBytes,
         timeoutMs,
+        httpAttemptTimeoutMs,
+        httpMaxAttempts,
         elapsedMs: Date.now() - started,
         upstreamStatus,
         ownAbortTimerFired,
