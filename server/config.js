@@ -44,7 +44,7 @@ export function loadConfig() {
     maxCodeChars: int('MAX_CODE_CHARS', 10000),
     maxQuestionChars: int('MAX_QUESTION_CHARS', 1000),
     maxOutputTokens: int('MAX_OUTPUT_TOKENS', 2048),
-    aiTimeoutMs: int('AI_TIMEOUT_MS', 45000),
+    aiTimeoutMs: int('AI_TIMEOUT_MS', 90000),
     verifyRetry: env.VERIFY_RETRY === 'true',
   };
 
