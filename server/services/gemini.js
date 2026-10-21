@@ -18,6 +18,10 @@ function upstreamStatusOf(error) {
   return Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined;
 }
 
+function isGemini3Model(model) {
+  return /^gemini-3(?:\.|-)/i.test(String(model || ''));
+}
+
 function logModelRequest({ requestId, model, operation, attempt, promptBytes, timeoutMs, httpAttemptTimeoutMs, httpMaxAttempts, elapsedMs, upstreamStatus, ownAbortTimerFired, outcome, errorName }) {
   const safeModel = String(model || 'unset').replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 100);
   console.info(
@@ -139,6 +143,7 @@ export function createAi(cfg, { clientFactory } = {}) {
     const timeoutMs = cfg.aiTimeoutMs;
     const httpAttemptTimeoutMs = Math.min(timeoutMs, 40000);
     const httpMaxAttempts = 2;
+    const gemini3Model = isGemini3Model(cfg.geminiModel);
     const promptBytes = Buffer.byteLength(JSON.stringify({ systemInstruction, contents }), 'utf8');
     const started = Date.now();
     const controller = new AbortController();
@@ -165,7 +170,12 @@ export function createAi(cfg, { clientFactory } = {}) {
         config: {
           systemInstruction,
           maxOutputTokens: cfg.maxOutputTokens,
-          temperature: input.operation === 'solution' || input.operation === 'dryrun' ? 0.2 : 0.5,
+          // Gemini 3 models use thinking levels instead of temperature. Keep
+          // routine solution generation latency-focused; retain the model's
+          // default reasoning level for the other sections.
+          ...(gemini3Model
+            ? (input.operation === 'solution' ? { thinkingConfig: { thinkingLevel: 'low' } } : {})
+            : { temperature: input.operation === 'solution' || input.operation === 'dryrun' ? 0.2 : 0.5 }),
           abortSignal: controller.signal,
           // Gemini can briefly return 503 while a model is overloaded. Retry
           // transient provider errors a few times within the overall timeout.
