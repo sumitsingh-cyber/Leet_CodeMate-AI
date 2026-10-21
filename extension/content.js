@@ -286,11 +286,20 @@
   });
 
   let lastSlug = slugFromUrl();
-  setInterval(() => {
+  const navigationWatcher = setInterval(() => {
     const currentSlug = slugFromUrl();
     if (currentSlug !== lastSlug) {
       lastSlug = currentSlug;
-      chrome.runtime.sendMessage({ type: 'PROBLEM_CHANGED', slug: currentSlug }).catch(() => {});
+      try {
+        const pending = chrome.runtime.sendMessage({ type: 'PROBLEM_CHANGED', slug: currentSlug });
+        pending?.catch?.((error) => {
+          if (/extension context invalidated/i.test(String(error?.message || error))) clearInterval(navigationWatcher);
+        });
+      } catch {
+        // A tab can keep the old content script alive briefly after the
+        // extension is reloaded or updated. Its runtime APIs are invalid then.
+        clearInterval(navigationWatcher);
+      }
     }
   }, 500);
 })();
