@@ -165,6 +165,18 @@ export function createAi(cfg, { clientFactory } = {}) {
           maxOutputTokens: cfg.maxOutputTokens,
           temperature: input.operation === 'solution' || input.operation === 'dryrun' ? 0.2 : 0.5,
           abortSignal: controller.signal,
+          // Gemini can briefly return 503 while a model is overloaded. Retry
+          // transient provider errors a few times within the overall timeout.
+          httpOptions: {
+            retryOptions: {
+              attempts: 3,
+              initialDelay: 1,
+              maxDelay: 4,
+              expBase: 2,
+              jitter: 1,
+              httpStatusCodes: [408, 429, 500, 502, 503, 504],
+            },
+          },
           ...outputConfig,
         },
       });
