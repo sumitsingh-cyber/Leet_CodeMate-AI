@@ -57,6 +57,98 @@
   gap: 10px;
 }
 
+/* Problem info banner */
+.viz-problem-card {
+  background: linear-gradient(180deg, rgba(53, 214, 196, 0.08) 0%, rgba(21, 27, 44, 0.9) 100%);
+  border-color: rgba(53, 214, 196, 0.25);
+}
+
+.viz-problem-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-badge-live {
+  background: rgba(74, 222, 128, 0.15) !important;
+  color: #4ade80 !important;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.viz-problem-title {
+  margin: 2px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.viz-problem-meta {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.viz-problem-meta strong {
+  color: var(--text);
+}
+
+/* Notice / empty / unsupported card */
+.viz-notice-card {
+  padding: 18px 14px;
+  text-align: left;
+}
+
+.viz-notice-title {
+  margin: 0 0 6px;
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--amber);
+}
+
+.viz-notice-text {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* Example selector pills */
+.viz-example-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.viz-pill-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 550;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.viz-pill-btn:hover {
+  background: var(--ink);
+  color: var(--text);
+}
+
+.viz-pill-btn.active {
+  background: rgba(53, 214, 196, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 650;
+}
+
 .viz-card-title {
   font-size: 13px;
   font-weight: 600;
@@ -168,7 +260,7 @@
 
 /* Stage Canvas */
 .viz-stage {
-  min-height: 140px;
+  min-height: 130px;
   background: #0a0f1b;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -186,7 +278,44 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100px;
+  min-height: 95px;
+}
+
+/* Output comparison box */
+.viz-output-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.viz-out-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+
+.viz-out-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  flex: none;
+}
+
+.viz-out-val {
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.viz-actual-output-val {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* Legend */
@@ -307,9 +436,9 @@
 
 .viz-message-row {
   min-height: 20px;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text);
-  line-height: 1.4;
+  line-height: 1.45;
   padding: 6px 8px;
   background: var(--raised);
   border-left: 3px solid var(--accent);

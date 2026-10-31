@@ -1,581 +1,69 @@
 /* CodeMate AI – DSA Visualizer Panel Orchestrator
-   Connects problem detection, algorithm catalog, custom inputs,
-   and visualizer engine. */
+   Fully synchronized with the active LeetCode problem and actual examples. */
 
 (() => {
   const { createEngine, AnimationPlayer } = window.VizEngine;
   const { renderStep } = window.VizRenderer;
   const { buildControls } = window.VizControls;
+  const { buildProblemContext, matchProblem, PROBLEM_REGISTRY } = window.ProblemSync;
 
-  /* ── Algorithm Catalog ───────────────────────────────────── */
-  const CATALOG = [
-    // 1. Arrays & Two Pointers
-    {
-      id: 'arrays-two-sum-hash',
-      name: 'Two Sum (Hash Map)',
-      category: 'Arrays',
-      renderer: 'array',
-      fn: window.VizAlgoArrays.twoSumHash,
-      defaultInput: { array: [2, 7, 11, 15], target: 9 },
-      schema: [
-        { key: 'array', label: 'Array (comma-separated)', type: 'array' },
-        { key: 'target', label: 'Target Sum', type: 'number' },
-      ],
-      slugs: ['two-sum'],
-    },
-    {
-      id: 'arrays-two-sum-pointers',
-      name: 'Two Sum II (Two Pointers)',
-      category: 'Arrays',
-      renderer: 'array',
-      fn: window.VizAlgoArrays.twoSumTwoPointers,
-      defaultInput: { array: [2, 3, 4, 7, 11, 15], target: 9 },
-      schema: [
-        { key: 'array', label: 'Sorted Array (comma-separated)', type: 'array' },
-        { key: 'target', label: 'Target Sum', type: 'number' },
-      ],
-      slugs: ['two-sum-ii-input-array-is-sorted'],
-    },
-    {
-      id: 'arrays-two-sum-brute',
-      name: 'Two Sum (Brute Force)',
-      category: 'Arrays',
-      renderer: 'array',
-      fn: window.VizAlgoArrays.twoSumBrute,
-      defaultInput: { array: [2, 7, 11, 15], target: 9 },
-      schema: [
-        { key: 'array', label: 'Array (comma-separated)', type: 'array' },
-        { key: 'target', label: 'Target Sum', type: 'number' },
-      ],
-      slugs: [],
-    },
-    {
-      id: 'arrays-kadane',
-      name: 'Maximum Subarray (Kadane)',
-      category: 'Arrays',
-      renderer: 'array',
-      fn: window.VizAlgoArrays.kadane,
-      defaultInput: { array: [-2, 1, -3, 4, -1, 2, 1, -5, 4] },
-      schema: [
-        { key: 'array', label: 'Array (comma-separated)', type: 'array' },
-      ],
-      slugs: ['maximum-subarray'],
-    },
-    {
-      id: 'arrays-sliding-window',
-      name: 'Sliding Window (Max Sum of Size K)',
-      category: 'Arrays',
-      renderer: 'array',
-      fn: window.VizAlgoArrays.slidingWindowMax,
-      defaultInput: { array: [2, 1, 5, 1, 3, 2], k: 3 },
-      schema: [
-        { key: 'array', label: 'Array (comma-separated)', type: 'array' },
-        { key: 'k', label: 'Window Size (k)', type: 'number' },
-      ],
-      slugs: ['sliding-window-maximum'],
-    },
-    {
-      id: 'arrays-move-zeroes',
-      name: 'Move Zeroes',
-      category: 'Arrays',
-      renderer: 'array',
-      fn: window.VizAlgoArrays.moveZeroes,
-      defaultInput: { array: [0, 1, 0, 3, 12] },
-      schema: [
-        { key: 'array', label: 'Array (comma-separated)', type: 'array' },
-      ],
-      slugs: ['move-zeroes'],
-    },
-    {
-      id: 'arrays-prefix-sum',
-      name: 'Prefix Sum Array',
-      category: 'Arrays',
-      renderer: 'array',
-      fn: window.VizAlgoArrays.prefixSum,
-      defaultInput: { array: [1, 2, 3, 4, 5] },
-      schema: [
-        { key: 'array', label: 'Array (comma-separated)', type: 'array' },
-      ],
-      slugs: ['running-sum-of-1d-array', 'range-sum-query-immutable'],
-    },
-
-    // 2. Searching
-    {
-      id: 'search-binary',
-      name: 'Binary Search',
-      category: 'Searching',
-      renderer: 'array',
-      fn: window.VizAlgoArrays.binarySearch,
-      defaultInput: { array: [-1, 0, 3, 5, 9, 12], target: 9 },
-      schema: [
-        { key: 'array', label: 'Sorted Array (comma-separated)', type: 'array' },
-        { key: 'target', label: 'Target Value', type: 'number' },
-      ],
-      slugs: ['binary-search', 'search-insert-position'],
-    },
-
-    // 3. Sorting
-    {
-      id: 'sort-bubble',
-      name: 'Bubble Sort',
-      category: 'Sorting',
-      renderer: 'bars',
-      fn: window.VizAlgoArrays.bubbleSort,
-      defaultInput: { array: [5, 2, 8, 1, 9, 3] },
-      schema: [
-        { key: 'array', label: 'Array (comma-separated)', type: 'array' },
-      ],
-      slugs: ['sort-an-array', 'sort-colors'],
-    },
-    {
-      id: 'sort-selection',
-      name: 'Selection Sort',
-      category: 'Sorting',
-      renderer: 'bars',
-      fn: window.VizAlgoArrays.selectionSort,
-      defaultInput: { array: [64, 25, 12, 22, 11] },
-      schema: [
-        { key: 'array', label: 'Array (comma-separated)', type: 'array' },
-      ],
-      slugs: [],
-    },
-    {
-      id: 'sort-insertion',
-      name: 'Insertion Sort',
-      category: 'Sorting',
-      renderer: 'bars',
-      fn: window.VizAlgoArrays.insertionSort,
-      defaultInput: { array: [12, 11, 13, 5, 6] },
-      schema: [
-        { key: 'array', label: 'Array (comma-separated)', type: 'array' },
-      ],
-      slugs: ['insertion-sort-list'],
-    },
-    {
-      id: 'sort-merge',
-      name: 'Merge Sort',
-      category: 'Sorting',
-      renderer: 'bars',
-      fn: window.VizAlgoArrays.mergeSortAlgo,
-      defaultInput: { array: [38, 27, 43, 3, 9, 82, 10] },
-      schema: [
-        { key: 'array', label: 'Array (comma-separated)', type: 'array' },
-      ],
-      slugs: [],
-    },
-    {
-      id: 'sort-quick',
-      name: 'Quick Sort',
-      category: 'Sorting',
-      renderer: 'bars',
-      fn: window.VizAlgoArrays.quickSortAlgo,
-      defaultInput: { array: [10, 80, 30, 90, 40, 50, 70] },
-      schema: [
-        { key: 'array', label: 'Array (comma-separated)', type: 'array' },
-      ],
-      slugs: [],
-    },
-
-    // 4. Strings
-    {
-      id: 'string-palindrome',
-      name: 'Valid Palindrome',
-      category: 'Strings',
-      renderer: 'string',
-      fn: window.VizAlgoStrings.isPalindrome,
-      defaultInput: { string: 'racecar' },
-      schema: [
-        { key: 'string', label: 'String to check', type: 'string' },
-      ],
-      slugs: ['valid-palindrome', 'valid-palindrome-ii'],
-    },
-    {
-      id: 'string-longest-unique',
-      name: 'Longest Substring Without Repeating',
-      category: 'Strings',
-      renderer: 'string',
-      fn: window.VizAlgoStrings.lengthOfLongestSubstring,
-      defaultInput: { string: 'abcabcbb' },
-      schema: [
-        { key: 'string', label: 'Input String', type: 'string' },
-      ],
-      slugs: ['longest-substring-without-repeating-characters'],
-    },
-    {
-      id: 'string-anagram',
-      name: 'Valid Anagram',
-      category: 'Strings',
-      renderer: 'string',
-      fn: window.VizAlgoStrings.isAnagram,
-      defaultInput: { string: 'anagram', target: 'nagaram' },
-      schema: [
-        { key: 'string', label: 'String s', type: 'string' },
-        { key: 'target', label: 'String t', type: 'string' },
-      ],
-      slugs: ['valid-anagram'],
-    },
-    {
-      id: 'string-parentheses',
-      name: 'Valid Parentheses',
-      category: 'Strings',
-      renderer: 'string',
-      fn: window.VizAlgoStrings.validParentheses,
-      defaultInput: { string: '()[]{}' },
-      schema: [
-        { key: 'string', label: 'Brackets string', type: 'string' },
-      ],
-      slugs: ['valid-parentheses'],
-    },
-    {
-      id: 'string-reverse',
-      name: 'Reverse String',
-      category: 'Strings',
-      renderer: 'string',
-      fn: window.VizAlgoStrings.reverseString,
-      defaultInput: { string: 'hello' },
-      schema: [
-        { key: 'string', label: 'Input String', type: 'string' },
-      ],
-      slugs: ['reverse-string'],
-    },
-
-    // 5. Linked Lists
-    {
-      id: 'll-reverse',
-      name: 'Reverse Linked List',
-      category: 'Linked List',
-      renderer: 'linked-list',
-      fn: window.VizAlgoLinkedList.reverseList,
-      defaultInput: { array: [1, 2, 3, 4, 5] },
-      schema: [
-        { key: 'array', label: 'Node Values (comma-separated)', type: 'array' },
-      ],
-      slugs: ['reverse-linked-list', 'reverse-linked-list-ii'],
-    },
-    {
-      id: 'll-cycle',
-      name: 'Detect Cycle (Floyd)',
-      category: 'Linked List',
-      renderer: 'linked-list',
-      fn: window.VizAlgoLinkedList.detectCycle,
-      defaultInput: { array: [3, 2, 0, -4], cycleAt: 1 },
-      schema: [
-        { key: 'array', label: 'Node Values', type: 'array' },
-        { key: 'cycleAt', label: 'Cycle back to index (-1 for none)', type: 'number' },
-      ],
-      slugs: ['linked-list-cycle', 'linked-list-cycle-ii'],
-    },
-    {
-      id: 'll-middle',
-      name: 'Middle of the Linked List',
-      category: 'Linked List',
-      renderer: 'linked-list',
-      fn: window.VizAlgoLinkedList.middleNode,
-      defaultInput: { array: [1, 2, 3, 4, 5] },
-      schema: [
-        { key: 'array', label: 'Node Values', type: 'array' },
-      ],
-      slugs: ['middle-of-the-linked-list'],
-    },
-    {
-      id: 'll-merge',
-      name: 'Merge Two Sorted Lists',
-      category: 'Linked List',
-      renderer: 'linked-list',
-      fn: window.VizAlgoLinkedList.mergeTwoLists,
-      defaultInput: { array: [1, 2, 4], target_array: [1, 3, 4] },
-      schema: [
-        { key: 'array', label: 'List 1 Values', type: 'array' },
-        { key: 'target_array', label: 'List 2 Values', type: 'array' },
-      ],
-      slugs: ['merge-two-sorted-lists'],
-    },
-
-    // 6. Stack & Queue
-    {
-      id: 'stack-ops',
-      name: 'Stack Push/Pop/Peek',
-      category: 'Stack',
-      renderer: 'stack',
-      fn: window.VizAlgoStack.stackOperations,
-      defaultInput: {},
-      schema: [],
-      slugs: ['implement-stack-using-queues', 'implement-queue-using-stacks'],
-    },
-    {
-      id: 'stack-nge',
-      name: 'Next Greater Element',
-      category: 'Stack',
-      renderer: 'array',
-      fn: window.VizAlgoStack.nextGreaterElement,
-      defaultInput: { array: [4, 5, 2, 25] },
-      schema: [
-        { key: 'array', label: 'Array (comma-separated)', type: 'array' },
-      ],
-      slugs: ['next-greater-element-i', 'daily-temperatures'],
-    },
-    {
-      id: 'stack-min',
-      name: 'Min Stack',
-      category: 'Stack',
-      renderer: 'stack',
-      fn: window.VizAlgoStack.minStack,
-      defaultInput: {},
-      schema: [],
-      slugs: ['min-stack'],
-    },
-
-    // 7. Recursion & Backtracking
-    {
-      id: 'rec-factorial',
-      name: 'Factorial (Recursion)',
-      category: 'Recursion',
-      renderer: 'stack',
-      fn: window.VizAlgoRecursion.factorial,
-      defaultInput: { n: 5 },
-      schema: [
-        { key: 'n', label: 'Number n (≤ 8)', type: 'number' },
-      ],
-      slugs: [],
-    },
-    {
-      id: 'rec-fibonacci',
-      name: 'Fibonacci (Recursion & Memo)',
-      category: 'Recursion',
-      renderer: 'stack',
-      fn: window.VizAlgoRecursion.fibonacci,
-      defaultInput: { n: 6 },
-      schema: [
-        { key: 'n', label: 'Number n (≤ 10)', type: 'number' },
-      ],
-      slugs: ['fibonacci-number'],
-    },
-    {
-      id: 'rec-subsets',
-      name: 'Generate Subsets (Backtracking)',
-      category: 'Recursion',
-      renderer: 'array',
-      fn: window.VizAlgoRecursion.generateSubsets,
-      defaultInput: { array: [1, 2, 3] },
-      schema: [
-        { key: 'array', label: 'Elements (max 4)', type: 'array' },
-      ],
-      slugs: ['subsets', 'subsets-ii', 'combinations'],
-    },
-
-    // 8. Trees
-    {
-      id: 'tree-inorder',
-      name: 'Binary Tree Inorder Traversal',
-      category: 'Trees',
-      renderer: 'tree',
-      fn: window.VizAlgoTrees.inorderTraversal,
-      defaultInput: { tree: [4, 2, 6, 1, 3, 5, 7] },
-      schema: [
-        { key: 'tree', label: 'Level-order values (use null for empty)', type: 'array' },
-      ],
-      slugs: ['binary-tree-inorder-traversal'],
-    },
-    {
-      id: 'tree-level-order',
-      name: 'Level Order Traversal (BFS)',
-      category: 'Trees',
-      renderer: 'tree',
-      fn: window.VizAlgoTrees.levelOrderTraversal,
-      defaultInput: { tree: [3, 9, 20, null, null, 15, 7] },
-      schema: [
-        { key: 'tree', label: 'Level-order values', type: 'array' },
-      ],
-      slugs: ['binary-tree-level-order-traversal'],
-    },
-
-    // 9. Graphs
-    {
-      id: 'graph-bfs',
-      name: 'Breadth First Search (BFS)',
-      category: 'Graphs',
-      renderer: 'graph',
-      fn: window.VizAlgoGraphs.bfsGraph,
-      defaultInput: { n: 6, edges: [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5]] },
-      schema: [
-        { key: 'n', label: 'Number of nodes', type: 'number' },
-      ],
-      slugs: ['clone-graph'],
-    },
-    {
-      id: 'graph-dfs',
-      name: 'Depth First Search (DFS)',
-      category: 'Graphs',
-      renderer: 'graph',
-      fn: window.VizAlgoGraphs.dfsGraph,
-      defaultInput: { n: 6, edges: [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5]] },
-      schema: [
-        { key: 'n', label: 'Number of nodes', type: 'number' },
-      ],
-      slugs: ['all-paths-from-source-to-target'],
-    },
-    {
-      id: 'graph-islands',
-      name: 'Number of Islands (Grid BFS/DFS)',
-      category: 'Graphs',
-      renderer: 'grid',
-      fn: window.VizAlgoGraphs.numberOfIslands,
-      defaultInput: {
-        grid: [
-          ['1', '1', '0', '0'],
-          ['1', '1', '0', '0'],
-          ['0', '0', '1', '0'],
-          ['0', '0', '0', '1'],
-        ],
-      },
-      schema: [],
-      slugs: ['number-of-islands', 'max-area-of-island'],
-    },
-
-    // 10. Dynamic Programming
-    {
-      id: 'dp-climb-stairs',
-      name: 'Climbing Stairs',
-      category: 'Dynamic Programming',
-      renderer: 'dp',
-      fn: window.VizAlgoDP.climbingStairs,
-      defaultInput: { n: 6 },
-      schema: [
-        { key: 'n', label: 'Number of steps (n)', type: 'number' },
-      ],
-      slugs: ['climbing-stairs'],
-    },
-    {
-      id: 'dp-coin-change',
-      name: 'Coin Change',
-      category: 'Dynamic Programming',
-      renderer: 'dp',
-      fn: window.VizAlgoDP.coinChange,
-      defaultInput: { coins: [1, 2, 5], amount: 11 },
-      schema: [
-        { key: 'coins', label: 'Coins (comma-separated)', type: 'array' },
-        { key: 'amount', label: 'Target Amount', type: 'number' },
-      ],
-      slugs: ['coin-change'],
-    },
-    {
-      id: 'dp-lcs',
-      name: 'Longest Common Subsequence',
-      category: 'Dynamic Programming',
-      renderer: 'dp',
-      fn: window.VizAlgoDP.longestCommonSubsequence,
-      defaultInput: { string: 'ABCBDAB', target: 'BDCAB' },
-      schema: [
-        { key: 'string', label: 'String 1', type: 'string' },
-        { key: 'target', label: 'String 2', type: 'string' },
-      ],
-      slugs: ['longest-common-subsequence'],
-    },
-
-    // 11. Hashing
-    {
-      id: 'hash-group-anagrams',
-      name: 'Group Anagrams',
-      category: 'Hashing',
-      renderer: 'array',
-      fn: window.VizAlgoHashing.groupAnagrams,
-      defaultInput: { words: ['eat', 'tea', 'tan', 'ate', 'nat', 'bat'] },
-      schema: [],
-      slugs: ['group-anagrams'],
-    },
-
-    // 12. Bit Manipulation
-    {
-      id: 'bit-single-number',
-      name: 'Single Number (XOR)',
-      category: 'Bit Manipulation',
-      renderer: 'array',
-      fn: window.VizAlgoBit.singleNumber,
-      defaultInput: { array: [4, 1, 2, 1, 2] },
-      schema: [
-        { key: 'array', label: 'Array (comma-separated)', type: 'array' },
-      ],
-      slugs: ['single-number'],
-    },
-    {
-      id: 'bit-count-bits',
-      name: 'Count Set Bits (Hamming Weight)',
-      category: 'Bit Manipulation',
-      renderer: 'array',
-      fn: window.VizAlgoBit.countSetBits,
-      defaultInput: { n: 13 },
-      schema: [
-        { key: 'n', label: 'Integer n', type: 'number' },
-      ],
-      slugs: ['number-of-1-bits', 'counting-bits'],
-    },
-
-    // 13. Greedy
-    {
-      id: 'greedy-jump-game',
-      name: 'Jump Game',
-      category: 'Greedy',
-      renderer: 'array',
-      fn: window.VizAlgoGreedy.jumpGame,
-      defaultInput: { array: [2, 3, 1, 1, 4] },
-      schema: [
-        { key: 'array', label: 'Jump Array (comma-separated)', type: 'array' },
-      ],
-      slugs: ['jump-game', 'jump-game-ii'],
-    },
-    {
-      id: 'greedy-merge-intervals',
-      name: 'Merge Intervals',
-      category: 'Greedy',
-      renderer: 'array',
-      fn: window.VizAlgoGreedy.mergeIntervals,
-      defaultInput: { intervals: [[1, 3], [2, 6], [8, 10], [15, 18]] },
-      schema: [],
-      slugs: ['merge-intervals'],
-    },
-  ];
-
-  /* ── Match Problem to Algorithm ──────────────────────────── */
-  function findBestAlgorithm(problem) {
-    if (!problem) return CATALOG[0];
-    const slug = (problem.slug || '').toLowerCase();
-    // 1. Direct slug match
-    for (const item of CATALOG) {
-      if (item.slugs.includes(slug)) return item;
-    }
-    // 2. Title/Tags match
-    const text = `${problem.title || ''} ${(problem.tags || []).join(' ')} ${problem.statement || ''}`.toLowerCase();
-    if (text.includes('binary search') || text.includes('search a 2d matrix')) return CATALOG.find(a => a.id === 'search-binary');
-    if (text.includes('palindrome')) return CATALOG.find(a => a.id === 'string-palindrome');
-    if (text.includes('linked list') && (text.includes('reverse') || text.includes('invert'))) return CATALOG.find(a => a.id === 'll-reverse');
-    if (text.includes('cycle') && text.includes('list')) return CATALOG.find(a => a.id === 'll-cycle');
-    if (text.includes('parenthes') || text.includes('bracket')) return CATALOG.find(a => a.id === 'string-parentheses');
-    if (text.includes('island')) return CATALOG.find(a => a.id === 'graph-islands');
-    if (text.includes('tree') && text.includes('traversal')) return CATALOG.find(a => a.id === 'tree-inorder');
-    if (text.includes('coin change')) return CATALOG.find(a => a.id === 'dp-coin-change');
-    if (text.includes('single number')) return CATALOG.find(a => a.id === 'bit-single-number');
-    if (text.includes('jump game')) return CATALOG.find(a => a.id === 'greedy-jump-game');
-    if (text.includes('sliding window') || text.includes('subarray')) return CATALOG.find(a => a.id === 'arrays-kadane');
-
-    return CATALOG[0];
-  }
-
-  /* ── Visualizer Panel View Builder ───────────────────────── */
   class VizPanel {
-    constructor({ container, onBack }) {
+    constructor({ container, onBack, onRefreshProblem }) {
       this.container = container;
       this.onBack = onBack;
-      this.selectedAlgo = CATALOG[0];
-      this.currentInput = JSON.parse(JSON.stringify(this.selectedAlgo.defaultInput));
+      this.onRefreshProblem = onRefreshProblem;
+      this.ctx = null;
+      this.matchedAlgo = null;
+      this.activeExampleIndex = 0; // 0 = Ex 1, 1 = Ex 2, -1 = Custom Input
+      this.currentInput = {};
       this.player = null;
+      this.manualAlgo = null;
     }
 
-    render(problem = null) {
-      if (problem) {
-        this.selectedAlgo = findBestAlgorithm(problem);
-        this.currentInput = JSON.parse(JSON.stringify(this.selectedAlgo.defaultInput));
+    setProblem(rawProblem) {
+      this.manualAlgo = null;
+      this.ctx = buildProblemContext(rawProblem);
+      this.render();
+    }
+
+    updateProblem(rawProblem) {
+      const newCtx = buildProblemContext(rawProblem);
+      if (!this.ctx || !newCtx || this.ctx.slug !== newCtx.slug) {
+        this.ctx = newCtx;
+        this.manualAlgo = null;
+        this.activeExampleIndex = 0;
+        this.render();
+      }
+    }
+
+    render() {
+      if (this.player) {
+        this.player.destroy();
+        this.player = null;
       }
 
+      // 1. Not a LeetCode problem page
+      if (!this.ctx || !this.ctx.slug) {
+        this._renderEmptyState();
+        return;
+      }
+
+      // 2. Find matching algorithm
+      const algo = this.manualAlgo || matchProblem(this.ctx);
+      this.matchedAlgo = algo;
+
+      // 3. Unsupported problem state
+      if (algo && algo.unsupported) {
+        this._renderUnsupportedState(algo);
+        return;
+      }
+
+      // 4. Supported problem state
+      this._renderProblemVisualizer(algo);
+    }
+
+    /* ── Render State: Empty / No Problem ─────────────────────── */
+    _renderEmptyState() {
       this.container.innerHTML = `
         <div class="viz-view">
           <div class="viz-header">
@@ -586,39 +74,152 @@
               </svg>
               <span>Live DSA Visualizer</span>
             </div>
-            <button type="button" class="viz-back-btn" id="vizBackBtn">
-              &#8592; Back to AI
-            </button>
+            <button type="button" class="viz-back-btn" id="vizBackBtn">&#8592; Back to AI</button>
           </div>
 
-          <!-- Configuration Card -->
-          <div class="viz-card">
-            <div class="viz-card-title">
-              <span>Algorithm</span>
-              <span class="viz-badge" id="vizCategoryBadge">${this.selectedAlgo.category}</span>
+          <div class="viz-card viz-notice-card">
+            <h3 class="viz-notice-title">No LeetCode Problem Detected</h3>
+            <p class="viz-notice-text">
+              Open a supported LeetCode problem page (such as <em>26. Remove Duplicates from Sorted Array</em>, <em>1. Two Sum</em>, or <em>704. Binary Search</em>) to see synchronized live visualizations.
+            </p>
+            <div class="viz-actions" style="margin-top: 10px;">
+              <button type="button" class="viz-run-btn" id="vizRefreshPageBtn">
+                ↻ Refresh Problem
+              </button>
             </div>
+          </div>
+        </div>
+      `;
+      this.container.querySelector('#vizBackBtn')?.addEventListener('click', () => this._handleBack());
+      this.container.querySelector('#vizRefreshPageBtn')?.addEventListener('click', () => {
+        if (this.onRefreshProblem) this.onRefreshProblem();
+      });
+    }
 
-            <div class="viz-select-row">
-              <select id="vizAlgoSelect" class="viz-select">
-                ${CATALOG.map(a => `<option value="${a.id}" ${a.id === this.selectedAlgo.id ? 'selected' : ''}>[${a.category}] ${a.name}</option>`).join('')}
+    /* ── Render State: Unsupported Problem ────────────────────── */
+    _renderUnsupportedState(algo) {
+      const title = this.ctx.problemId ? `${this.ctx.problemId}. ${this.ctx.title}` : this.ctx.title;
+      this.container.innerHTML = `
+        <div class="viz-view">
+          <div class="viz-header">
+            <div class="viz-header-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/>
+              </svg>
+              <span>Live DSA Visualizer</span>
+            </div>
+            <button type="button" class="viz-back-btn" id="vizBackBtn">&#8592; Back to AI</button>
+          </div>
+
+          <div class="viz-card viz-notice-card">
+            <span class="viz-badge" style="background:rgba(255,196,92,0.15);color:var(--amber);margin-bottom:6px">Problem Detected</span>
+            <h3 class="viz-notice-title" style="margin:2px 0 6px">${title}</h3>
+            <p class="viz-notice-text">
+              Visualization for this specific problem is not available yet. We are actively adding support for more algorithm patterns.
+            </p>
+            <div style="margin-top: 12px;">
+              <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Or select a supported algorithm to explore:</label>
+              <select id="vizManualAlgoSelect" class="viz-select">
+                <option value="">-- Choose a supported algorithm --</option>
+                ${PROBLEM_REGISTRY.map(r => `<option value="${r.id}">[${r.category}] ${r.name}</option>`).join('')}
               </select>
             </div>
+          </div>
+        </div>
+      `;
+      this.container.querySelector('#vizBackBtn')?.addEventListener('click', () => this._handleBack());
+      this.container.querySelector('#vizManualAlgoSelect')?.addEventListener('change', (e) => {
+        const found = PROBLEM_REGISTRY.find(r => r.id === e.target.value);
+        if (found) {
+          this.manualAlgo = found;
+          this.activeExampleIndex = -1; // Custom input for manual selection
+          this.render();
+        }
+      });
+    }
 
-            <!-- Dynamic Input Fields -->
+    /* ── Render State: Fully Supported Problem Visualizer ──────── */
+    _renderProblemVisualizer(algo) {
+      const examples = this.ctx.examples || [];
+      const hasExamples = examples.length > 0;
+      const problemTitle = this.ctx.problemId ? `${this.ctx.problemId}. ${this.ctx.title}` : this.ctx.title;
+
+      // Extract input for the selected example
+      if (this.activeExampleIndex >= 0 && this.activeExampleIndex < examples.length) {
+        const selectedEx = examples[this.activeExampleIndex];
+        this.currentInput = JSON.parse(JSON.stringify(selectedEx.parsedInput || {}));
+      } else if (this.activeExampleIndex === -1 && Object.keys(this.currentInput).length === 0) {
+        this.currentInput = JSON.parse(JSON.stringify(algo.defaultInput || {}));
+      }
+
+      // Ensure input contains the expected properties
+      this._normalizeInputForAlgo(algo);
+
+      const activeEx = this.activeExampleIndex >= 0 ? examples[this.activeExampleIndex] : null;
+
+      this.container.innerHTML = `
+        <div class="viz-view">
+          <!-- Header Bar -->
+          <div class="viz-header">
+            <div class="viz-header-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/>
+              </svg>
+              <span>Live DSA Visualizer</span>
+            </div>
+            <button type="button" class="viz-back-btn" id="vizBackBtn">&#8592; Back to AI</button>
+          </div>
+
+          <!-- Active Problem Info Card -->
+          <div class="viz-card viz-problem-card">
+            <div class="viz-problem-head">
+              <span class="viz-badge viz-badge-live">LIVE LEETCODE SYNC</span>
+              <span class="viz-badge">${algo.category}</span>
+            </div>
+            <h2 class="viz-problem-title">${problemTitle}</h2>
+            <div class="viz-problem-meta">
+              <span><strong>Pattern:</strong> ${algo.pattern}</span>
+              <span>·</span>
+              <span><strong>Algorithm:</strong> ${algo.algorithmName}</span>
+            </div>
+          </div>
+
+          <!-- Example Selector & Input Card -->
+          <div class="viz-card">
+            <div class="viz-card-title">
+              <span>Problem Input</span>
+              <span class="viz-badge" id="vizExampleBadge">${this.activeExampleIndex >= 0 ? `Example ${this.activeExampleIndex + 1}` : 'Custom Input'}</span>
+            </div>
+
+            <!-- Example Toggle Buttons -->
+            <div class="viz-example-pills">
+              ${examples.map((ex, idx) => `
+                <button type="button" class="viz-pill-btn ${idx === this.activeExampleIndex ? 'active' : ''}" data-example-idx="${idx}">
+                  Example ${idx + 1}
+                </button>
+              `).join('')}
+              <button type="button" class="viz-pill-btn ${this.activeExampleIndex === -1 ? 'active' : ''}" data-example-idx="-1">
+                Custom Input
+              </button>
+            </div>
+
+            <!-- Dynamic Input Form -->
             <div class="viz-inputs" id="vizInputsContainer"></div>
 
             <div class="viz-actions">
               <button type="button" class="viz-run-btn" id="vizRunBtn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                Visualize
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Run Visualization
               </button>
-              <button type="button" class="viz-random-btn" id="vizRandomBtn" title="Generate random sample values">
+              <button type="button" class="viz-random-btn" id="vizRandomBtn" title="Generate random values for this problem">
                 Randomize
               </button>
             </div>
           </div>
 
-          <!-- Stage / Animation Canvas Card -->
+          <!-- Execution Stage Card -->
           <div class="viz-card">
             <div class="viz-card-title">
               <span>Execution Stage</span>
@@ -628,8 +229,8 @@
             <div class="viz-legend">
               <span class="viz-legend-item"><span class="viz-legend-dot current"></span> Active</span>
               <span class="viz-legend-item"><span class="viz-legend-dot compare"></span> Compare / Visited</span>
-              <span class="viz-legend-item"><span class="viz-legend-dot done"></span> Done / Sorted / Found</span>
-              <span class="viz-legend-item"><span class="viz-legend-dot reject"></span> Rejected / Mismatch</span>
+              <span class="viz-legend-item"><span class="viz-legend-dot done"></span> Unique / Found</span>
+              <span class="viz-legend-item"><span class="viz-legend-dot reject"></span> Duplicate / Rejected</span>
             </div>
 
             <!-- Variables & State -->
@@ -640,68 +241,118 @@
               <div class="viz-canvas"></div>
             </div>
 
+            <!-- Expected Output vs Actual Output Comparison -->
+            <div class="viz-output-comparison">
+              <div class="viz-out-row">
+                <span class="viz-out-label">Expected Output:</span>
+                <span class="viz-out-val" id="vizExpectedOutput">${activeEx && activeEx.rawOutput ? activeEx.rawOutput : 'Determined by algorithm'}</span>
+              </div>
+              <div class="viz-out-row">
+                <span class="viz-out-label">Actual Output:</span>
+                <span class="viz-out-val viz-actual-output-val" id="vizActualOutput">Running...</span>
+              </div>
+            </div>
+
             <!-- Animation Controls Panel -->
             <div class="viz-controls-panel"></div>
           </div>
         </div>
       `;
 
-      this._bindEvents();
-      this._renderInputFields();
+      this._bindEvents(algo);
+      this._renderInputFields(algo);
       this.runAnimation();
     }
 
-    _bindEvents() {
-      const backBtn = this.container.querySelector('#vizBackBtn');
-      if (backBtn && this.onBack) {
-        backBtn.addEventListener('click', () => {
-          if (this.player) this.player.pause();
-          this.onBack();
-        });
+    _normalizeInputForAlgo(algo) {
+      if (!this.currentInput || Object.keys(this.currentInput).length === 0) {
+        this.currentInput = JSON.parse(JSON.stringify(algo.defaultInput || {}));
+        return;
       }
-
-      const select = this.container.querySelector('#vizAlgoSelect');
-      if (select) {
-        select.addEventListener('change', (e) => {
-          const chosen = CATALOG.find(a => a.id === e.target.value);
-          if (chosen) {
-            this.selectedAlgo = chosen;
-            this.currentInput = JSON.parse(JSON.stringify(chosen.defaultInput));
-            this.container.querySelector('#vizCategoryBadge').textContent = chosen.category;
-            this._renderInputFields();
-            this.runAnimation();
-          }
-        });
+      // If primaryParam is 'nums' but input parsed as 'value' or 'numbers'
+      if (algo.primaryParam && !this.currentInput[algo.primaryParam]) {
+        if (this.currentInput.value && Array.isArray(this.currentInput.value)) {
+          this.currentInput[algo.primaryParam] = this.currentInput.value;
+        } else if (this.currentInput.array) {
+          this.currentInput[algo.primaryParam] = this.currentInput.array;
+        } else if (this.currentInput.nums) {
+          this.currentInput[algo.primaryParam] = this.currentInput.nums;
+        }
       }
-
-      const runBtn = this.container.querySelector('#vizRunBtn');
-      if (runBtn) {
-        runBtn.addEventListener('click', () => {
-          this._collectInputs();
-          this.runAnimation();
-        });
-      }
-
-      const randomBtn = this.container.querySelector('#vizRandomBtn');
-      if (randomBtn) {
-        randomBtn.addEventListener('click', () => {
-          this._randomizeInputs();
-          this._renderInputFields();
-          this.runAnimation();
-        });
+      // If target is missing for Two Sum / Binary Search
+      if (algo.id.includes('two-sum') || algo.id.includes('binary')) {
+        if (this.currentInput.target === undefined) {
+          this.currentInput.target = algo.defaultInput.target || 9;
+        }
       }
     }
 
-    _renderInputFields() {
+    _bindEvents(algo) {
+      this.container.querySelector('#vizBackBtn')?.addEventListener('click', () => this._handleBack());
+
+      // Example toggle pills
+      const pills = this.container.querySelectorAll('.viz-pill-btn');
+      pills.forEach(pill => {
+        pill.addEventListener('click', () => {
+          const idx = parseInt(pill.dataset.exampleIdx, 10);
+          this.activeExampleIndex = idx;
+          if (idx >= 0 && this.ctx.examples[idx]) {
+            this.currentInput = JSON.parse(JSON.stringify(this.ctx.examples[idx].parsedInput || {}));
+          }
+          this._renderInputFields(algo);
+          this._updatePillsUI();
+          this.runAnimation();
+        });
+      });
+
+      // Run button
+      this.container.querySelector('#vizRunBtn')?.addEventListener('click', () => {
+        this._collectInputs();
+        this.runAnimation();
+      });
+
+      // Randomize button
+      this.container.querySelector('#vizRandomBtn')?.addEventListener('click', () => {
+        this._randomizeInputs(algo);
+        this.activeExampleIndex = -1; // Switch to custom input
+        this._updatePillsUI();
+        this._renderInputFields(algo);
+        this.runAnimation();
+      });
+    }
+
+    _updatePillsUI() {
+      const pills = this.container.querySelectorAll('.viz-pill-btn');
+      pills.forEach(pill => {
+        const idx = parseInt(pill.dataset.exampleIdx, 10);
+        pill.classList.toggle('active', idx === this.activeExampleIndex);
+      });
+      const badge = this.container.querySelector('#vizExampleBadge');
+      if (badge) {
+        badge.textContent = this.activeExampleIndex >= 0 ? `Example ${this.activeExampleIndex + 1}` : 'Custom Input';
+      }
+      const expOut = this.container.querySelector('#vizExpectedOutput');
+      if (expOut) {
+        if (this.activeExampleIndex >= 0 && this.ctx.examples[this.activeExampleIndex]) {
+          expOut.textContent = this.ctx.examples[this.activeExampleIndex].rawOutput || 'N/A';
+        } else {
+          expOut.textContent = 'Custom Input (computed by algorithm)';
+        }
+      }
+    }
+
+    _renderInputFields(algo) {
       const box = this.container.querySelector('#vizInputsContainer');
       if (!box) return;
-      if (!this.selectedAlgo.schema.length) {
-        box.innerHTML = '<span style="font-size:11.5px;color:var(--muted)">Using built-in demo data.</span>';
+      if (!algo.schema.length) {
+        box.innerHTML = '<span style="font-size:11.5px;color:var(--muted)">Using problem-provided data structure.</span>';
         return;
       }
-      box.innerHTML = this.selectedAlgo.schema.map(f => {
+      box.innerHTML = algo.schema.map(f => {
         let val = this.currentInput[f.key];
-        if (Array.isArray(val)) val = val.join(', ');
+        if (Array.isArray(val)) {
+          val = val.map(x => x === null ? 'null' : x).join(', ');
+        }
         return `
           <div class="viz-input-group">
             <label>${f.label}</label>
@@ -719,8 +370,10 @@
         const val = input.value.trim();
         if (type === 'array') {
           this.currentInput[key] = val.split(',').map(s => {
-            const num = Number(s.trim());
-            return isNaN(num) ? s.trim() : num;
+            const trimmed = s.trim();
+            if (trimmed === 'null') return null;
+            const num = Number(trimmed);
+            return isNaN(num) ? trimmed : num;
           }).filter(x => x !== '');
         } else if (type === 'number') {
           this.currentInput[key] = Number(val);
@@ -730,54 +383,61 @@
       });
     }
 
-    _randomizeInputs() {
-      this.selectedAlgo.schema.forEach(f => {
+    _randomizeInputs(algo) {
+      algo.schema.forEach(f => {
         if (f.type === 'array') {
           const len = 5 + Math.floor(Math.random() * 4);
-          const randArr = Array.from({ length: len }, () => 1 + Math.floor(Math.random() * 50));
-          if (this.selectedAlgo.id.includes('binary') || this.selectedAlgo.id.includes('two-pointers')) {
+          const randArr = Array.from({ length: len }, () => 1 + Math.floor(Math.random() * 25));
+          if (algo.id.includes('binary') || algo.id.includes('remove-duplicates') || algo.id.includes('two-pointers')) {
             randArr.sort((a, b) => a - b);
           }
           this.currentInput[f.key] = randArr;
         } else if (f.type === 'number') {
-          if (f.key === 'target' && Array.isArray(this.currentInput.array)) {
-            const arr = this.currentInput.array;
+          if (f.key === 'target' && Array.isArray(this.currentInput[algo.primaryParam || 'nums'])) {
+            const arr = this.currentInput[algo.primaryParam || 'nums'];
             if (arr.length >= 2) {
               const i = Math.floor(Math.random() * arr.length);
               let j = Math.floor(Math.random() * arr.length);
               if (i === j) j = (j + 1) % arr.length;
               this.currentInput[f.key] = arr[i] + arr[j];
             } else {
-              this.currentInput[f.key] = 10 + Math.floor(Math.random() * 20);
+              this.currentInput[f.key] = 10 + Math.floor(Math.random() * 15);
             }
           } else {
-            this.currentInput[f.key] = 1 + Math.floor(Math.random() * 10);
+            this.currentInput[f.key] = 1 + Math.floor(Math.random() * 8);
           }
         } else if (f.type === 'string') {
-          const samples = ['racecar', 'deified', 'algorithm', 'leetcode', 'visualizer'];
+          const samples = ['()[]{}', '([{}])', '()', 'racecar', 'leetcode'];
           this.currentInput[f.key] = samples[Math.floor(Math.random() * samples.length)];
         }
       });
     }
 
     runAnimation() {
+      if (!this.matchedAlgo || !this.matchedAlgo.fn) return;
       if (this.player) this.player.destroy();
 
-      // Execute algorithm and record steps
-      const steps = createEngine(this.selectedAlgo.fn, this.currentInput);
-      const stageCard = this.container.querySelector('.viz-stage');
+      // Ensure input is properly formatted
+      this._normalizeInputForAlgo(this.matchedAlgo);
+
+      // Record steps
+      const steps = createEngine(this.matchedAlgo.fn, this.currentInput);
       const controlsBox = this.container.querySelector('.viz-controls-panel');
 
       this.player = new AnimationPlayer(steps, (step) => {
-        renderStep(this.container, step, this.selectedAlgo.renderer);
+        renderStep(this.container, step, this.matchedAlgo.renderer);
       });
 
       buildControls(controlsBox, this.player, (step) => {
-        renderStep(this.container, step, this.selectedAlgo.renderer);
+        renderStep(this.container, step, this.matchedAlgo.renderer);
       });
 
-      // auto start play
       this.player.play();
+    }
+
+    _handleBack() {
+      if (this.player) this.player.pause();
+      if (this.onBack) this.onBack();
     }
 
     destroy() {

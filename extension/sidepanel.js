@@ -74,6 +74,9 @@
     const oldSlug = state.problem?.slug; applyResponse(response);
     if (oldSlug && oldSlug !== state.problem?.slug) { state.active = null; state.error = null; }
     render();
+    if (state.vizPanel && $('vizContainer') && !$('vizContainer').hidden) {
+      state.vizPanel.updateProblem(state.problem);
+    }
   }
   function currentEntry() {
     if (!state.problem || !state.active) return null;
@@ -219,20 +222,25 @@
 
     const vizBtn = $('visualizeBtn');
     if (vizBtn) {
-      vizBtn.addEventListener('click', () => {
+      vizBtn.addEventListener('click', async () => {
         $('mainView').hidden = true;
         $('vizContainer').hidden = false;
+        if (!state.problem) {
+          const res = await fetchProblem();
+          applyResponse(res);
+        }
         if (!state.vizPanel && window.VizPanel) {
           state.vizPanel = new window.VizPanel({
             container: $('vizContainer'),
             onBack: () => {
               $('vizContainer').hidden = true;
               $('mainView').hidden = false;
-            }
+            },
+            onRefreshProblem: refreshProblem
           });
         }
         if (state.vizPanel) {
-          state.vizPanel.render(state.problem);
+          state.vizPanel.setProblem(state.problem);
         }
       });
     }
