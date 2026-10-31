@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CodeMate AI</title>
   <link rel="stylesheet" href="sidepanel.css">
+  <link rel="stylesheet" href="visualizer/viz-styles.css">
 </head>
 <body>
   <header class="top">
@@ -27,7 +28,7 @@
     <p class="fine">Server: <span id="serverUrl"></span></p>
   </section>
 
-  <main>
+  <main id="mainView">
     <section class="problem" aria-labelledby="problemLabel">
       <div class="problem-head">
         <span id="statusDot" class="dot" aria-hidden="true"></span>
@@ -37,6 +38,14 @@
       <h1 id="problemTitle" class="problem-title">Looking for a problem...</h1>
       <p id="problemStatus" class="problem-status" role="status"></p>
     </section>
+
+    <!-- Visualize Algorithm Launcher Button -->
+    <button id="visualizeBtn" class="viz-launcher-btn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/>
+      </svg>
+      <span>Visualize Algorithm</span>
+    </button>
 
     <div class="lang-row">
       <label for="lang">Language</label>
@@ -58,12 +67,26 @@
     </section>
   </main>
 
+  <!-- Live DSA Visualizer View Container -->
+  <section id="vizContainer" hidden></section>
+
   <footer class="foot"><span id="quota">Free daily limit applies.</span></footer>
 
   <script src="config.js"></script>
   <script src="markdown.js"></script>
   <script src="api.js"></script>
   <script src="classify.js"></script>
+  <!-- Visualizer Scripts -->
+  <script src="visualizer/viz-engine.js"></script>
+  <script src="visualizer/viz-renderer.js"></script>
+  <script src="visualizer/viz-controls.js"></script>
+  <script src="visualizer/algorithms/arrays.js"></script>
+  <script src="visualizer/algorithms/strings.js"></script>
+  <script src="visualizer/algorithms/linked-list.js"></script>
+  <script src="visualizer/algorithms/stack-recursion.js"></script>
+  <script src="visualizer/algorithms/trees-graphs-dp.js"></script>
+  <script src="visualizer/viz-panel.js"></script>
+  <!-- Main Sidepanel -->
   <script src="sidepanel.js"></script>
 </body>
 </html>

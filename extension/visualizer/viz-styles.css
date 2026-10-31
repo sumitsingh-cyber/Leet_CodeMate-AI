@@ -1,0 +1,351 @@
+/* CodeMate AI – DSA Visualizer Styles */
+
+.viz-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 12px 16px;
+}
+
+.viz-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.viz-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--accent);
+}
+
+.viz-header-title svg {
+  width: 20px;
+  height: 20px;
+}
+
+.viz-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.viz-back-btn:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+
+/* Card container */
+.viz-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.viz-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.viz-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(53, 214, 196, 0.15);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* Selectors row */
+.viz-select-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.viz-select-row label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.viz-select {
+  width: 100%;
+  padding: 7px 8px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+/* Input customizer */
+.viz-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.viz-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.viz-input-group label {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.viz-input {
+  padding: 6px 8px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12.5px;
+  font-family: var(--mono);
+}
+.viz-input:focus {
+  outline: 2px solid var(--accent);
+}
+
+.viz-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.viz-run-btn {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: none;
+  border-radius: 8px;
+  font-weight: 650;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.viz-run-btn:hover {
+  opacity: 0.92;
+}
+
+.viz-random-btn {
+  padding: 8px 12px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 8px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.viz-random-btn:hover {
+  background: var(--ink);
+}
+
+/* Stage Canvas */
+.viz-stage {
+  min-height: 140px;
+  background: #0a0f1b;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow-x: auto;
+  position: relative;
+}
+
+.viz-canvas {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100px;
+}
+
+/* Legend */
+.viz-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 6px 8px;
+  background: var(--raised);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.viz-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.viz-legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+}
+.viz-legend-dot.current { background: #35d6c4; }
+.viz-legend-dot.compare { background: #ffc45c; }
+.viz-legend-dot.done    { background: #4ade80; }
+.viz-legend-dot.reject  { background: #ff7a7a; }
+.viz-legend-dot.pivot   { background: #c084fc; }
+
+/* Variables panel */
+.viz-vars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.viz-var {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.viz-var-name {
+  color: var(--muted);
+}
+
+.viz-var-val {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+/* Controls */
+.viz-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.viz-ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-btn {
+  display: inline-grid;
+  place-items: center;
+  height: 32px;
+  min-width: 36px;
+  padding: 0 8px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.viz-btn:hover:not(:disabled) {
+  background: var(--ink);
+}
+.viz-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.viz-btn-primary {
+  background: rgba(53, 214, 196, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.viz-lbl {
+  font-size: 12px;
+  color: var(--muted);
+  flex: none;
+}
+
+.viz-step-counter {
+  margin-left: auto;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--muted);
+}
+
+.viz-timeline {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.viz-message-row {
+  min-height: 20px;
+  font-size: 12.5px;
+  color: var(--text);
+  line-height: 1.4;
+  padding: 6px 8px;
+  background: var(--raised);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+
+/* Big "Visualize Algorithm" Launcher Button on main panel */
+.viz-launcher-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(53, 214, 196, 0.12) 0%, rgba(255, 196, 92, 0.12) 100%);
+  border: 1px solid rgba(53, 214, 196, 0.35);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-weight: 650;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.viz-launcher-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, rgba(53, 214, 196, 0.22) 0%, rgba(255, 196, 92, 0.2) 100%);
+  transform: translateY(-1px);
+}
+.viz-launcher-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+.viz-launcher-btn svg {
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+}

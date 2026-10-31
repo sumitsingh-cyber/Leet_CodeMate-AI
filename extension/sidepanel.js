@@ -1,11 +1,11 @@
-﻿/* CodeMate AI side panel */
+/* CodeMate AI side panel */
 (() => {
   const $ = (id) => document.getElementById(id);
   const LANGS = { auto: 'Auto (recommended)', cpp: 'C++', python: 'Python', java: 'Java', mysql: 'MySQL', postgresql: 'PostgreSQL', oraclesql: 'Oracle SQL', mssql: 'MS SQL Server', pandas: 'Pandas', bash: 'Bash' };
   const LABELS = { explain: 'Explain Problem', hint: 'Hint', approach: 'Approach', solution: 'Solution Code', dryrun: 'Dry Run', complexity: 'Complexity', edgecases: 'Edge Cases', review: 'Review My Code', optimize: 'Optimize My Code', followup: 'Ask Follow-up' };
   const ICONS = { gear: '<path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/>', refresh: '<path d="M21 12a9 9 0 11-3-6.7"/><path d="M21 4v5h-5"/>', copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/>', trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>', explain: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 114 2c-.9.6-1.5 1-1.5 2M12 17h.01"/>', hint: '<path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0012 3z"/>', approach: '<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6H14a3 3 0 013 3v6.5"/>', solution: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>', dryrun: '<path d="M4 6h16M4 12h16M4 18h10"/><path d="M18 15l3 3-3 3"/>', complexity: '<path d="M3 20h18M5 16l4-5 4 3 6-8"/>', edgecases: '<path d="M12 3l9 16H3L12 3z"/><path d="M12 10v4M12 17h.01"/>', review: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5M8.5 11l2 2 3.5-4"/>', optimize: '<path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/>', followup: '<path d="M21 12a8 8 0 01-11.5 7.2L4 20l1-4.5A8 8 0 1121 12z"/>' };
   const SECTION_IDS = Object.keys(LABELS);
-  const state = { problem: null, classification: null, contextId: '', language: CONFIG.DEFAULT_LANGUAGE || 'auto', active: null, busy: false, loading: false, error: null, draft: '', cache: new Map(), hints: new Map(), chats: new Map(), requestId: 0, actionId: 0 };
+  const state = { problem: null, classification: null, contextId: '', language: CONFIG.DEFAULT_LANGUAGE || 'auto', active: null, busy: false, loading: false, error: null, draft: '', cache: new Map(), hints: new Map(), chats: new Map(), requestId: 0, actionId: 0, vizPanel: null };
   const hash = (value) => { let h = 5381; const s = String(value || ''); for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const slugFromUrl = (url) => { try { return (new URL(url).pathname.match(/^\/problems\/([^/]+)/) || [])[1] || ''; } catch { return ''; } };
@@ -216,6 +216,27 @@
     $('copyBtn').addEventListener('click', async () => { const text = rawResultText(); if (!text) return; await copyText(text); $('copyBtn').setAttribute('aria-label', 'Copied'); setTimeout(() => $('copyBtn').setAttribute('aria-label', 'Copy result'), 1200); });
     $('clearBtn').addEventListener('click', clearActive); $('refreshBtn').addEventListener('click', refreshProblem);
     $('settingsBtn').addEventListener('click', () => { const panel = $('settings'); panel.hidden = !panel.hidden; $('settingsBtn').setAttribute('aria-expanded', String(!panel.hidden)); });
+
+    const vizBtn = $('visualizeBtn');
+    if (vizBtn) {
+      vizBtn.addEventListener('click', () => {
+        $('mainView').hidden = true;
+        $('vizContainer').hidden = false;
+        if (!state.vizPanel && window.VizPanel) {
+          state.vizPanel = new window.VizPanel({
+            container: $('vizContainer'),
+            onBack: () => {
+              $('vizContainer').hidden = true;
+              $('mainView').hidden = false;
+            }
+          });
+        }
+        if (state.vizPanel) {
+          state.vizPanel.render(state.problem);
+        }
+      });
+    }
+
     const onLanguage = async (e) => {
       if (state.busy) return;
       state.language = Object.hasOwn(LANGS, e.target.value) ? e.target.value : 'auto';
