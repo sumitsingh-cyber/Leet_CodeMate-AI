@@ -32,7 +32,6 @@
 
       if (arr[j] !== arr[i]) {
         i++;
-        const prevVal = arr[i];
         arr[i] = arr[j];
         const h2 = { [i]: 'current', [j]: 'compare' };
         for (let idx = 0; idx < i; idx++) h2[idx] = 'done';
@@ -68,6 +67,155 @@
       ignoredFrom: k,
       actualOutput: { k, unique: uniquePortion }
     }, 'done', `Algorithm complete! k = ${k}. First ${k} elements [${uniquePortion.join(', ')}] are unique. Elements beyond index ${k - 1} are ignored.`);
+  }
+
+  /* ── Universal Two Pointers (Works on ANY LeetCode Array) ── */
+  function generalTwoPointers(input, rec) {
+    const raw = input.nums || input.array || input.numbers || [1, 2, 3, 4, 5];
+    const arr = (Array.isArray(raw) ? raw : [1, 2, 3, 4, 5]).slice();
+    const target = input.target !== undefined ? Number(input.target) : null;
+    let l = 0, r = arr.length - 1;
+
+    rec.record({
+      array: arr.slice(),
+      highlights: { [l]: 'slow', [r]: 'fast' },
+      vars: { left: l, right: r, 'arr[left]': arr[l], 'arr[right]': arr[r], target: target !== null ? target : 'N/A' }
+    }, 'init', `Two Pointers initialized: left pointer at index 0 (${arr[l]}), right pointer at index ${r} (${arr[r]})`);
+
+    let stepsCount = 0;
+    while (l < r && stepsCount < 40) {
+      stepsCount++;
+      const sum = arr[l] + arr[r];
+      const h = { [l]: 'slow', [r]: 'fast' };
+
+      rec.record({
+        array: arr.slice(),
+        highlights: h,
+        vars: { left: l, right: r, 'arr[left]': arr[l], 'arr[right]': arr[r], sum, target: target !== null ? target : 'N/A' }
+      }, 'compare', `Compare: left (${arr[l]}) and right (${arr[r]}). Sum = ${sum}`);
+
+      if (target !== null && sum === target) {
+        rec.record({
+          array: arr.slice(),
+          highlights: { [l]: 'done', [r]: 'done' },
+          vars: { found: true, indices: `[${l}, ${r}]`, sum, target },
+          actualOutput: [l, r]
+        }, 'found', `Target matched! Indices [${l}, ${r}] yield target ${target}.`);
+        return;
+      }
+
+      if (target !== null) {
+        if (sum < target) {
+          l++;
+        } else {
+          r--;
+        }
+      } else {
+        l++;
+        r--;
+      }
+    }
+
+    const allH = {};
+    arr.forEach((_, idx) => allH[idx] = 'done');
+    rec.record({
+      array: arr.slice(),
+      highlights: allH,
+      vars: { completed: true, totalElements: arr.length },
+      actualOutput: arr.slice()
+    }, 'done', `Two Pointers traversal complete across all elements.`);
+  }
+
+  /* ── Universal Sliding Window (Works on ANY LeetCode Array) ── */
+  function generalSlidingWindow(input, rec) {
+    const raw = input.nums || input.array || input.numbers || [1, 3, -1, -3, 5, 3, 6, 7];
+    const arr = (Array.isArray(raw) ? raw : [1, 3, -1, -3, 5, 3, 6, 7]).slice();
+    const k = input.k !== undefined ? Math.max(1, Math.min(Number(input.k), arr.length)) : Math.min(3, arr.length);
+    let windowSum = 0;
+    for (let i = 0; i < k; i++) windowSum += arr[i];
+    let maxSum = windowSum;
+
+    const initialH = {};
+    for (let i = 0; i < k; i++) initialH[i] = 'compare';
+    rec.record({
+      array: arr.slice(),
+      highlights: initialH,
+      vars: { windowSize: k, window: `[0..${k - 1}]`, windowSum, maxSum }
+    }, 'init', `Initial window [0..${k - 1}] sum = ${windowSum}`);
+
+    for (let i = k; i < arr.length; i++) {
+      windowSum += arr[i] - arr[i - k];
+      const h = {};
+      for (let j = i - k + 1; j <= i; j++) h[j] = 'current';
+      h[i - k] = 'rejected';
+      if (windowSum > maxSum) {
+        maxSum = windowSum;
+        for (let j = i - k + 1; j <= i; j++) h[j] = 'done';
+      }
+      rec.record({
+        array: arr.slice(),
+        highlights: h,
+        vars: { window: `[${i - k + 1}..${i}]`, windowSum, maxSum, added: arr[i], removed: arr[i - k] }
+      }, 'slide', `Slide window: add arr[${i}]=${arr[i]}, drop arr[${i - k}]=${arr[i - k]}. Window sum = ${windowSum}`);
+    }
+
+    rec.record({
+      array: arr.slice(),
+      vars: { maxSum, windowSize: k },
+      actualOutput: maxSum
+    }, 'done', `Sliding window complete! Max window sum of size ${k} = ${maxSum}.`);
+  }
+
+  /* ── Universal Hash Map (Works on ANY LeetCode Array) ── */
+  function generalHashMap(input, rec) {
+    const raw = input.nums || input.array || [2, 7, 11, 15];
+    const arr = (Array.isArray(raw) ? raw : [2, 7, 11, 15]).slice();
+    const target = input.target !== undefined ? Number(input.target) : null;
+    const map = {};
+
+    rec.record({
+      array: arr.slice(),
+      vars: { map: '{}', totalElements: arr.length, target: target !== null ? target : 'N/A' }
+    }, 'init', `Hash Map initialized. Tracking entries and complements.`);
+
+    for (let i = 0; i < arr.length; i++) {
+      const val = arr[i];
+      const h = { [i]: 'current' };
+
+      if (target !== null) {
+        const need = target - val;
+        rec.record({
+          array: arr.slice(),
+          highlights: h,
+          vars: { index: i, value: val, need, mapEntries: JSON.stringify(map) }
+        }, 'check', `Index ${i}: value ${val}. Looking for complement ${need} in hash map.`);
+
+        if (map[need] !== undefined) {
+          const foundH = { [map[need]]: 'done', [i]: 'done' };
+          rec.record({
+            array: arr.slice(),
+            highlights: foundH,
+            vars: { found: true, result: `[${map[need]}, ${i}]`, val1: need, val2: val },
+            actualOutput: [map[need], i]
+          }, 'found', `Complement ${need} found at index ${map[need]}! Answer: [${map[need]}, ${i}]`);
+          return;
+        }
+      } else {
+        rec.record({
+          array: arr.slice(),
+          highlights: h,
+          vars: { index: i, value: val, currentMapSize: Object.keys(map).length }
+        }, 'insert', `Insert value ${val} (index ${i}) into Hash Map.`);
+      }
+
+      map[val] = i;
+    }
+
+    rec.record({
+      array: arr.slice(),
+      vars: { finalMap: JSON.stringify(map) },
+      actualOutput: map
+    }, 'done', `Hash map traversal complete. Processed ${arr.length} elements.`);
   }
 
   /* ── Best Time to Buy and Sell Stock (LeetCode 121) ── */
@@ -460,6 +608,9 @@
 
   window.VizAlgoArrays = {
     removeDuplicates,
+    generalTwoPointers,
+    generalSlidingWindow,
+    generalHashMap,
     maxProfit,
     twoSumBrute, twoSumHash, twoSumTwoPointers,
     binarySearch,

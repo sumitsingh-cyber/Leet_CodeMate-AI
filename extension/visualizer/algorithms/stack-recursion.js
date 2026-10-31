@@ -24,7 +24,8 @@
 
   /* ── Next Greater Element ── */
   function nextGreaterElement(input, rec) {
-    const arr = input.array.slice();
+    const raw = input.nums || input.array || [4, 5, 2, 25];
+    const arr = (Array.isArray(raw) ? raw : [4, 5, 2, 25]).slice();
     const n = arr.length;
     const result = new Array(n).fill(-1);
     const stack = []; // stores indices
@@ -40,7 +41,7 @@
       }
       stack.push(i);
     }
-    rec.record({ array: arr, vars: { result: result.slice() } }, 'done', `Next Greater Element: [${result}]`);
+    rec.record({ array: arr, vars: { result: result.slice() }, actualOutput: result.slice() }, 'done', `Next Greater Element: [${result}]`);
   }
 
   /* ── Min Stack ── */
@@ -117,7 +118,8 @@
 
   /* ── Generate Subsets ── */
   function generateSubsets(input, rec) {
-    const arr = input.array.slice().slice(0, 5); // max 5 for clarity
+    const raw = input.nums || input.array || [1, 2, 3];
+    const arr = (Array.isArray(raw) ? raw : [1, 2, 3]).slice(0, 5); // max 5 for clarity
     const result = [];
     const callStack = [];
     rec.record({ array: arr, stack: [], vars: { subsets: [] } }, 'init', `Generate all subsets of [${arr}]`);

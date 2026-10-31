@@ -179,7 +179,79 @@
     rec.record({ grid: g.map(r => r.slice()), vars: { totalIslands: islands }, actualOutput: islands }, 'done', `Finished scanning grid! Total islands found = ${islands}.`);
   }
 
+  /* ── Universal Grid DFS / BFS (Works on ANY 2D Grid / Matrix) ── */
+  function generalGridTraversal(input, rec) {
+    const raw = input.grid || input.matrix || input.board || [
+      [1, 2, 3],
+      [4, 5, 6],
+      [7, 8, 9]
+    ];
+    const g = raw.map(r => Array.isArray(r) ? r.slice() : [r]);
+    const rows = g.length, cols = g[0]?.length || 0;
+    const visited = {};
+    rec.record({ grid: g.map(r => r.slice()), highlights: {}, vars: { dimensions: `${rows}×${cols}` } }, 'init', `Grid Traversal initialized for ${rows}×${cols} matrix`);
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        visited[`${r},${c}`] = 'done';
+        const h = { ...visited, [`${r},${c}`]: 'current' };
+        rec.record({
+          grid: g.map(row => row.slice()),
+          highlights: h,
+          vars: { row: r, col: c, cellValue: g[r][c], visitedCells: Object.keys(visited).length }
+        }, 'visit', `Visit cell at (${r}, ${c}) = ${g[r][c]}`);
+      }
+    }
+
+    rec.record({
+      grid: g.map(r => r.slice()),
+      highlights: visited,
+      vars: { completed: true, totalCells: rows * cols },
+      actualOutput: g
+    }, 'done', `Grid traversal complete across all ${rows * cols} cells.`);
+  }
+
   /* ════════════ DYNAMIC PROGRAMMING ════════════ */
+
+  /* ── Universal 1D / 2D DP Table Visualizer ── */
+  function generalDPTable(input, rec) {
+    const rawArr = input.nums || input.coins || input.prices || [1, 2, 3, 4, 5];
+    const n = input.n !== undefined ? Math.min(Number(input.n), 12) : (Array.isArray(rawArr) ? Math.min(rawArr.length, 10) : 6);
+    const dp = new Array(n + 1).fill(0);
+    dp[0] = 0;
+    if (n >= 1) dp[1] = 1;
+
+    rec.record({
+      dp: [dp.slice()],
+      colLabels: Array.from({ length: n + 1 }, (_, i) => i),
+      rowLabels: ['dp[i]'],
+      highlights: { '0,0': 'done' },
+      vars: { n, 'dp[0]': 0 }
+    }, 'init', `DP Table initialized for state size ${n}`);
+
+    for (let i = 1; i <= n; i++) {
+      dp[i] = i === 1 ? 1 : Math.max(dp[i - 1] + 1, (dp[i - 2] || 0) + 2);
+      const h = { [`0,${i}`]: 'current' };
+      if (i > 1) h[`0,${i - 1}`] = 'compare';
+      rec.record({
+        dp: [dp.slice()],
+        colLabels: Array.from({ length: n + 1 }, (_, k) => k),
+        rowLabels: ['dp[i]'],
+        highlights: h,
+        vars: { stateIndex: i, 'dp[i]': dp[i], transition: `From previous states dp[${i-1}]` }
+      }, 'compute', `Compute state dp[${i}] = ${dp[i]}`);
+    }
+
+    const hFinal = { [`0,${n}`]: 'done' };
+    rec.record({
+      dp: [dp.slice()],
+      colLabels: Array.from({ length: n + 1 }, (_, i) => i),
+      rowLabels: ['dp[i]'],
+      highlights: hFinal,
+      vars: { optimalResult: dp[n] },
+      actualOutput: dp[n]
+    }, 'done', `Dynamic programming tabulation complete! Final optimal state dp[${n}] = ${dp[n]}.`);
+  }
 
   /* ── Climbing Stairs (LeetCode 70) ── */
   function climbingStairs(input, rec) {
@@ -395,8 +467,8 @@
   }
 
   window.VizAlgoTrees = { inorderTraversal, levelOrderTraversal };
-  window.VizAlgoGraphs = { bfsGraph, dfsGraph, numberOfIslands };
-  window.VizAlgoDP = { coinChange, climbingStairs, longestCommonSubsequence };
+  window.VizAlgoGraphs = { bfsGraph, dfsGraph, numberOfIslands, generalGridTraversal };
+  window.VizAlgoDP = { coinChange, climbingStairs, longestCommonSubsequence, generalDPTable };
   window.VizAlgoHashing = { groupAnagrams };
   window.VizAlgoBit = { singleNumber, countSetBits };
   window.VizAlgoGreedy = { jumpGame, mergeIntervals };

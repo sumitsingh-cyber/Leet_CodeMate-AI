@@ -95,10 +95,35 @@ test('DSA Visualizer – Automatic LeetCode Synchronization & Algorithms', async
     const m121 = matchProblem({ number: 121, slug: 'best-time-to-buy-and-sell-stock', title: 'Best Time to Buy and Sell Stock' });
     assert.equal(m121.id, 'arrays-buy-sell-stock');
 
-    // Random unsupported problem: NEVER returns Two Sum!
-    const mUnknown = matchProblem({ number: 9999, slug: 'some-crazy-unknown-problem', title: 'Some Crazy Problem' });
-    assert.ok(mUnknown.unsupported, 'Should be flagged as unsupported');
-    assert.notEqual(mUnknown.id, 'arrays-two-sum-hash', 'Must never silently default to Two Sum');
+    // Universal Classifier: ANY unknown/arbitrary LeetCode problem gets a working visualizer (never unsupported, never Two Sum)
+    const mTree = matchProblem({ number: 226, slug: 'invert-binary-tree', title: 'Invert Binary Tree', tags: ['Tree', 'Binary Tree'] });
+    assert.equal(mTree.renderer, 'tree');
+    assert.ok(mTree.availablePatterns.length >= 2);
+
+    const mGrid = matchProblem({ number: 733, slug: 'flood-fill', title: 'Flood Fill', tags: ['Matrix', 'DFS'] });
+    assert.equal(mGrid.renderer, 'grid');
+
+    const mUnknown = matchProblem({ number: 8888, slug: 'arbitrary-leetcode-problem', title: 'Arbitrary LeetCode Problem', tags: ['Two Pointers'] });
+    assert.equal(mUnknown.category, 'Arrays');
+    assert.notEqual(mUnknown.id, 'arrays-two-sum-hash', 'Must not hardcode Two Sum for unrelated problems');
+    assert.ok(!mUnknown.unsupported, 'Must support all LeetCode problems');
+    assert.ok(mUnknown.availablePatterns.length >= 2, 'Must provide available alternative patterns');
+  });
+
+  /* ── 2.1 Universal Approach Switcher Tests ────────────────── */
+  await t.test('Approach Switcher: allows switching between applicable algorithm patterns', () => {
+    const { findAlgorithmById } = sandbox.window.ProblemSync;
+    const twoPointersAlgo = findAlgorithmById('arrays-two-pointers');
+    assert.ok(twoPointersAlgo);
+    assert.equal(twoPointersAlgo.pattern, 'Two Pointers');
+
+    const slidingWindowAlgo = findAlgorithmById('arrays-sliding-window');
+    assert.ok(slidingWindowAlgo);
+    assert.equal(slidingWindowAlgo.pattern, 'Sliding Window');
+
+    const dpAlgo = findAlgorithmById('dp-table');
+    assert.ok(dpAlgo);
+    assert.equal(dpAlgo.pattern, 'Tabulation (Bottom-Up)');
   });
 
   /* ── 3. Test Problem 1: 26. Remove Duplicates from Sorted Array ── */
@@ -192,5 +217,26 @@ test('DSA Visualizer – Automatic LeetCode Synchronization & Algorithms', async
     const steps = createEngine(sandbox.window.VizAlgoTrees.levelOrderTraversal, { root: [3, 9, 20, null, null, 15, 7] });
     const last = steps[steps.length - 1];
     assert.deepEqual(last.state.actualOutput, [[3], [9, 20], [15, 7]]);
+  });
+
+  /* ── 13. Test Universal Engines on Arbitrary Inputs ─────────── */
+  await t.test('Universal Engines: execute without throwing on arbitrary LeetCode problem inputs', () => {
+    // Universal Two Pointers
+    const tpSteps = createEngine(sandbox.window.VizAlgoArrays.generalTwoPointers, { nums: [3, 8, 12, 19, 24] });
+    assert.ok(tpSteps.length >= 2);
+
+    // Universal Sliding Window
+    const swSteps = createEngine(sandbox.window.VizAlgoArrays.generalSlidingWindow, { nums: [1, 4, 2, 10, 23, 3, 1, 0, 20], k: 4 });
+    assert.ok(swSteps.length >= 2);
+
+    // Universal DP Table
+    const dpSteps = createEngine(sandbox.window.VizAlgoDP.generalDPTable, { nums: [2, 5, 10, 15], n: 4 });
+    assert.ok(dpSteps.length >= 2);
+
+    // Universal Grid Traversal
+    const gridSteps = createEngine(sandbox.window.VizAlgoGraphs.generalGridTraversal, {
+      grid: [[1, 2], [3, 4]]
+    });
+    assert.ok(gridSteps.length >= 2);
   });
 });

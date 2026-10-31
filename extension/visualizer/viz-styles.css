@@ -98,6 +98,54 @@
   color: var(--text);
 }
 
+/* Approach / Pattern switcher pills */
+.viz-approach-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(53, 214, 196, 0.15);
+}
+
+.viz-approach-label {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.viz-approach-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.viz-approach-btn {
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.viz-approach-btn:hover {
+  background: var(--ink);
+  color: var(--text);
+}
+
+.viz-approach-btn.active {
+  background: rgba(255, 196, 92, 0.18);
+  border-color: var(--amber);
+  color: var(--amber);
+  font-weight: 650;
+}
+
 /* Notice / empty / unsupported card */
 .viz-notice-card {
   padding: 18px 14px;

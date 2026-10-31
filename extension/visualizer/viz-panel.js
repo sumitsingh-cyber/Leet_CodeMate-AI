@@ -1,11 +1,12 @@
 /* CodeMate AI – DSA Visualizer Panel Orchestrator
-   Fully synchronized with the active LeetCode problem and actual examples. */
+   Fully synchronized with the active LeetCode problem, actual examples,
+   and dynamic approach / pattern switching for ALL LeetCode problems. */
 
 (() => {
   const { createEngine, AnimationPlayer } = window.VizEngine;
   const { renderStep } = window.VizRenderer;
   const { buildControls } = window.VizControls;
-  const { buildProblemContext, matchProblem, PROBLEM_REGISTRY } = window.ProblemSync;
+  const { buildProblemContext, matchProblem, findAlgorithmById, PROBLEM_REGISTRY } = window.ProblemSync;
 
   class VizPanel {
     constructor({ container, onBack, onRefreshProblem }) {
@@ -23,6 +24,8 @@
     setProblem(rawProblem) {
       this.manualAlgo = null;
       this.ctx = buildProblemContext(rawProblem);
+      this.activeExampleIndex = 0;
+      this.currentInput = {};
       this.render();
     }
 
@@ -32,6 +35,7 @@
         this.ctx = newCtx;
         this.manualAlgo = null;
         this.activeExampleIndex = 0;
+        this.currentInput = {};
         this.render();
       }
     }
@@ -43,22 +47,16 @@
       }
 
       // 1. Not a LeetCode problem page
-      if (!this.ctx || !this.ctx.slug) {
+      if (!this.ctx || (!this.ctx.slug && !this.ctx.title && !this.ctx.problemId)) {
         this._renderEmptyState();
         return;
       }
 
-      // 2. Find matching algorithm
+      // 2. Find matching algorithm or use manual selection
       const algo = this.manualAlgo || matchProblem(this.ctx);
       this.matchedAlgo = algo;
 
-      // 3. Unsupported problem state
-      if (algo && algo.unsupported) {
-        this._renderUnsupportedState(algo);
-        return;
-      }
-
-      // 4. Supported problem state
+      // 3. Render synchronized problem visualizer
       this._renderProblemVisualizer(algo);
     }
 
@@ -80,11 +78,11 @@
           <div class="viz-card viz-notice-card">
             <h3 class="viz-notice-title">No LeetCode Problem Detected</h3>
             <p class="viz-notice-text">
-              Open a supported LeetCode problem page (such as <em>26. Remove Duplicates from Sorted Array</em>, <em>1. Two Sum</em>, or <em>704. Binary Search</em>) to see synchronized live visualizations.
+              Open any LeetCode problem page (e.g. <em>26. Remove Duplicates</em>, <em>1. Two Sum</em>, <em>704. Binary Search</em>) to see synchronized live visualizations.
             </p>
             <div class="viz-actions" style="margin-top: 10px;">
               <button type="button" class="viz-run-btn" id="vizRefreshPageBtn">
-                ↻ Refresh Problem
+                ↻ Read Active Tab
               </button>
             </div>
           </div>
@@ -96,50 +94,7 @@
       });
     }
 
-    /* ── Render State: Unsupported Problem ────────────────────── */
-    _renderUnsupportedState(algo) {
-      const title = this.ctx.problemId ? `${this.ctx.problemId}. ${this.ctx.title}` : this.ctx.title;
-      this.container.innerHTML = `
-        <div class="viz-view">
-          <div class="viz-header">
-            <div class="viz-header-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/>
-              </svg>
-              <span>Live DSA Visualizer</span>
-            </div>
-            <button type="button" class="viz-back-btn" id="vizBackBtn">&#8592; Back to AI</button>
-          </div>
-
-          <div class="viz-card viz-notice-card">
-            <span class="viz-badge" style="background:rgba(255,196,92,0.15);color:var(--amber);margin-bottom:6px">Problem Detected</span>
-            <h3 class="viz-notice-title" style="margin:2px 0 6px">${title}</h3>
-            <p class="viz-notice-text">
-              Visualization for this specific problem is not available yet. We are actively adding support for more algorithm patterns.
-            </p>
-            <div style="margin-top: 12px;">
-              <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Or select a supported algorithm to explore:</label>
-              <select id="vizManualAlgoSelect" class="viz-select">
-                <option value="">-- Choose a supported algorithm --</option>
-                ${PROBLEM_REGISTRY.map(r => `<option value="${r.id}">[${r.category}] ${r.name}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-        </div>
-      `;
-      this.container.querySelector('#vizBackBtn')?.addEventListener('click', () => this._handleBack());
-      this.container.querySelector('#vizManualAlgoSelect')?.addEventListener('change', (e) => {
-        const found = PROBLEM_REGISTRY.find(r => r.id === e.target.value);
-        if (found) {
-          this.manualAlgo = found;
-          this.activeExampleIndex = -1; // Custom input for manual selection
-          this.render();
-        }
-      });
-    }
-
-    /* ── Render State: Fully Supported Problem Visualizer ──────── */
+    /* ── Render State: Synchronized Problem Visualizer ─────────── */
     _renderProblemVisualizer(algo) {
       const examples = this.ctx.examples || [];
       const hasExamples = examples.length > 0;
@@ -150,6 +105,8 @@
         const selectedEx = examples[this.activeExampleIndex];
         this.currentInput = JSON.parse(JSON.stringify(selectedEx.parsedInput || {}));
       } else if (this.activeExampleIndex === -1 && Object.keys(this.currentInput).length === 0) {
+        this.currentInput = JSON.parse(JSON.stringify(algo.defaultInput || {}));
+      } else if (Object.keys(this.currentInput).length === 0) {
         this.currentInput = JSON.parse(JSON.stringify(algo.defaultInput || {}));
       }
 
@@ -184,6 +141,20 @@
               <span>·</span>
               <span><strong>Algorithm:</strong> ${algo.algorithmName}</span>
             </div>
+
+            <!-- Approach / Pattern Switcher -->
+            ${algo.availablePatterns && algo.availablePatterns.length > 1 ? `
+              <div class="viz-approach-row">
+                <span class="viz-approach-label">Approach / Pattern:</span>
+                <div class="viz-approach-pills">
+                  ${algo.availablePatterns.map(p => `
+                    <button type="button" class="viz-approach-btn ${p.id === algo.id ? 'active' : ''}" data-pattern-id="${p.id}">
+                      ${p.name}
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
           </div>
 
           <!-- Example Selector & Input Card -->
@@ -269,26 +240,51 @@
         this.currentInput = JSON.parse(JSON.stringify(algo.defaultInput || {}));
         return;
       }
-      // If primaryParam is 'nums' but input parsed as 'value' or 'numbers'
-      if (algo.primaryParam && !this.currentInput[algo.primaryParam]) {
-        if (this.currentInput.value && Array.isArray(this.currentInput.value)) {
-          this.currentInput[algo.primaryParam] = this.currentInput.value;
-        } else if (this.currentInput.array) {
-          this.currentInput[algo.primaryParam] = this.currentInput.array;
-        } else if (this.currentInput.nums) {
-          this.currentInput[algo.primaryParam] = this.currentInput.nums;
+      if (algo.primaryParam) {
+        const p = algo.primaryParam;
+        if (this.currentInput[p] === undefined) {
+          if (this.currentInput.nums !== undefined) this.currentInput[p] = this.currentInput.nums;
+          else if (this.currentInput.numbers !== undefined) this.currentInput[p] = this.currentInput.numbers;
+          else if (this.currentInput.array !== undefined) this.currentInput[p] = this.currentInput.array;
+          else if (this.currentInput.prices !== undefined) this.currentInput[p] = this.currentInput.prices;
+          else if (this.currentInput.head !== undefined) this.currentInput[p] = this.currentInput.head;
+          else if (this.currentInput.grid !== undefined) this.currentInput[p] = this.currentInput.grid;
+          else if (this.currentInput.matrix !== undefined) this.currentInput[p] = this.currentInput.matrix;
+          else if (this.currentInput.root !== undefined) this.currentInput[p] = this.currentInput.root;
+          else if (this.currentInput.s !== undefined) this.currentInput[p] = this.currentInput.s;
+          else if (this.currentInput.value !== undefined) this.currentInput[p] = this.currentInput.value;
+          else if (algo.defaultInput && algo.defaultInput[p] !== undefined) this.currentInput[p] = algo.defaultInput[p];
         }
       }
-      // If target is missing for Two Sum / Binary Search
       if (algo.id.includes('two-sum') || algo.id.includes('binary')) {
         if (this.currentInput.target === undefined) {
-          this.currentInput.target = algo.defaultInput.target || 9;
+          this.currentInput.target = (algo.defaultInput && algo.defaultInput.target !== undefined) ? algo.defaultInput.target : 9;
         }
+      }
+      if (algo.id.includes('sliding-window') && this.currentInput.k === undefined) {
+        this.currentInput.k = (algo.defaultInput && algo.defaultInput.k !== undefined) ? algo.defaultInput.k : 3;
       }
     }
 
     _bindEvents(algo) {
       this.container.querySelector('#vizBackBtn')?.addEventListener('click', () => this._handleBack());
+
+      // Approach / Pattern switch buttons
+      const approachBtns = this.container.querySelectorAll('.viz-approach-btn');
+      approachBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const patternId = btn.dataset.patternId;
+          const targetAlgo = findAlgorithmById(patternId);
+          if (targetAlgo) {
+            this.manualAlgo = {
+              ...targetAlgo,
+              availablePatterns: algo.availablePatterns
+            };
+            this._normalizeInputForAlgo(this.manualAlgo);
+            this.render();
+          }
+        });
+      });
 
       // Example toggle pills
       const pills = this.container.querySelectorAll('.viz-pill-btn');
@@ -299,6 +295,7 @@
           if (idx >= 0 && this.ctx.examples[idx]) {
             this.currentInput = JSON.parse(JSON.stringify(this.ctx.examples[idx].parsedInput || {}));
           }
+          this._normalizeInputForAlgo(algo);
           this._renderInputFields(algo);
           this._updatePillsUI();
           this.runAnimation();
@@ -350,6 +347,9 @@
       }
       box.innerHTML = algo.schema.map(f => {
         let val = this.currentInput[f.key];
+        if (val === undefined && algo.defaultInput && algo.defaultInput[f.key] !== undefined) {
+          val = algo.defaultInput[f.key];
+        }
         if (Array.isArray(val)) {
           val = val.map(x => x === null ? 'null' : x).join(', ');
         }

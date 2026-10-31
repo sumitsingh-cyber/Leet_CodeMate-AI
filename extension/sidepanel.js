@@ -225,10 +225,10 @@
       vizBtn.addEventListener('click', async () => {
         $('mainView').hidden = true;
         $('vizContainer').hidden = false;
-        if (!state.problem) {
+        try {
           const res = await fetchProblem();
-          applyResponse(res);
-        }
+          if (res?.problem) applyResponse(res);
+        } catch { /* proceed with cached state */ }
         if (!state.vizPanel && window.VizPanel) {
           state.vizPanel = new window.VizPanel({
             container: $('vizContainer'),
