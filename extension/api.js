@@ -13,7 +13,8 @@ const Api = (() => {
     const timer = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT_MS);
     let res;
     try {
-      res = await fetch(CONFIG.BACKEND_URL + path, {
+      const baseUrl = (CONFIG.BACKEND_URL || '').replace(/\/+$/, '');
+      res = await fetch(baseUrl + path, {
         method,
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: body ? JSON.stringify(body) : undefined,

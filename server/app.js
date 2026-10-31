@@ -14,6 +14,16 @@ export function createApp(cfg, { ai = createAi(cfg), usage = new UsageTracker(cf
   app.use(corsMiddleware(cfg));
   app.use(express.json({ limit: cfg.maxBodyBytes }));
 
+  app.get('/', (_req, res) => {
+    res.json({
+      ok: true,
+      service: 'CodeMate AI Backend',
+      status: 'healthy',
+      aiEnabled: cfg.aiEnabled,
+      health: '/health',
+    });
+  });
+
   app.get('/health', (_req, res) => {
     res.json({ ok: true, aiEnabled: cfg.aiEnabled, time: new Date().toISOString() });
   });

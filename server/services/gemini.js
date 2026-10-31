@@ -143,7 +143,9 @@ export function createAi(cfg, { clientFactory } = {}) {
     const timeoutMs = cfg.aiTimeoutMs;
     const httpAttemptTimeoutMs = Math.min(timeoutMs, 40000);
     const httpMaxAttempts = 2;
-    const gemini3Model = isGemini3Model(cfg.geminiModel);
+    const candidateModels = cfg.geminiCandidateModels?.length
+      ? cfg.geminiCandidateModels
+      : (cfg.geminiModel ? [cfg.geminiModel] : []);
     const promptBytes = Buffer.byteLength(JSON.stringify({ systemInstruction, contents }), 'utf8');
     const started = Date.now();
     const controller = new AbortController();
@@ -151,6 +153,7 @@ export function createAi(cfg, { clientFactory } = {}) {
     let upstreamStatus;
     let outcome = 'success';
     let errorName = '';
+    let usedModel = cfg.geminiModel;
 
     const abortFromCaller = () => {
       if (!controller.signal.aborted) controller.abort(signal?.reason);
@@ -162,61 +165,75 @@ export function createAi(cfg, { clientFactory } = {}) {
       controller.abort(new DOMException('Gemini generation deadline exceeded.', 'TimeoutError'));
     }, timeoutMs);
 
-    let response;
     try {
-      response = await getClient().models.generateContent({
-        model: cfg.geminiModel,
-        contents,
-        config: {
-          systemInstruction,
-          maxOutputTokens: cfg.maxOutputTokens,
-          // Gemini 3 models use thinking levels instead of temperature. Keep
-          // routine solution generation latency-focused; retain the model's
-          // default reasoning level for the other sections.
-          ...(gemini3Model
-            ? (input.operation === 'solution' ? { thinkingConfig: { thinkingLevel: 'low' } } : {})
-            : { temperature: input.operation === 'solution' || input.operation === 'dryrun' ? 0.2 : 0.5 }),
-          abortSignal: controller.signal,
-          // Gemini can briefly return 503 while a model is overloaded. Retry
-          // transient provider errors a few times within the overall timeout.
-          httpOptions: {
-            // Bound each HTTP request separately so a stalled connection can
-            // be retried before the overall generation deadline expires.
-            timeout: httpAttemptTimeoutMs,
-            retryOptions: {
-              attempts: httpMaxAttempts,
-              initialDelay: 1,
-              maxDelay: 2,
-              expBase: 2,
-              jitter: 1,
-              httpStatusCodes: [408, 429, 500, 502, 503, 504],
+      let lastErr;
+      for (let modelIdx = 0; modelIdx < candidateModels.length; modelIdx++) {
+        const currentModel = candidateModels[modelIdx];
+        usedModel = currentModel;
+        const gemini3Model = isGemini3Model(currentModel);
+        let response;
+        try {
+          response = await getClient().models.generateContent({
+            model: currentModel,
+            contents,
+            config: {
+              systemInstruction,
+              maxOutputTokens: cfg.maxOutputTokens,
+              ...(gemini3Model
+                ? (input.operation === 'solution' ? { thinkingConfig: { thinkingLevel: 'low' } } : {})
+                : { temperature: input.operation === 'solution' || input.operation === 'dryrun' ? 0.2 : 0.5 }),
+              abortSignal: controller.signal,
+              httpOptions: {
+                timeout: httpAttemptTimeoutMs,
+                retryOptions: {
+                  attempts: httpMaxAttempts,
+                  initialDelay: 1,
+                  maxDelay: 2,
+                  expBase: 2,
+                  jitter: 1,
+                  httpStatusCodes: [408, 429, 500, 502, 503, 504],
+                },
+              },
+              ...outputConfig,
             },
-          },
-          ...outputConfig,
-        },
-      });
-      if (ownAbortTimerFired) throw new DOMException('Gemini generation deadline exceeded.', 'TimeoutError');
-      if (signal?.aborted) throw new DOMException('The request was cancelled.', 'AbortError');
-      upstreamStatus = upstreamStatusOf(response?.sdkHttpResponse);
-      if (!response || typeof response.text !== 'string') {
-        outcome = 'malformed_response';
-        throw new AiError('AI_MALFORMED_RESPONSE', 'The AI returned an incomplete response. Your current problem context is preserved; use Try again to retry.', 502);
+          });
+          if (ownAbortTimerFired) throw new DOMException('Gemini generation deadline exceeded.', 'TimeoutError');
+          if (signal?.aborted) throw new DOMException('The request was cancelled.', 'AbortError');
+          upstreamStatus = upstreamStatusOf(response?.sdkHttpResponse);
+          if (!response || typeof response.text !== 'string') {
+            outcome = 'malformed_response';
+            throw new AiError('AI_MALFORMED_RESPONSE', 'The AI returned an incomplete response. Your current problem context is preserved; use Try again to retry.', 502);
+          }
+          if (response.promptFeedback?.blockReason) throw new AiError('AI_BLOCKED', 'The AI declined to answer this request.', 422, false);
+          const text = response.text.trim();
+          if (!text) {
+            outcome = 'empty_response';
+            throw new AiError('AI_EMPTY', 'The AI returned an empty answer. Your current problem context is preserved; use Try again to retry.', 502);
+          }
+          return text;
+        } catch (err) {
+          lastErr = err;
+          if (err instanceof AiError) throw err;
+          const status = upstreamStatusOf(err);
+          upstreamStatus = status;
+          if (ownAbortTimerFired || signal?.aborted) break;
+          // If the model is experiencing temporary high demand (503) or is unavailable (404),
+          // and another candidate model was specified in GEMINI_MODEL, fall back to it.
+          if (([404, 408, 502, 503, 504].includes(status)) && modelIdx + 1 < candidateModels.length) {
+            console.warn(`[gemini] Model ${currentModel} returned ${status}, falling back to ${candidateModels[modelIdx + 1]}`);
+            continue;
+          }
+          break;
+        }
       }
-      if (response.promptFeedback?.blockReason) throw new AiError('AI_BLOCKED', 'The AI declined to answer this request.', 422, false);
-      const text = response.text.trim();
-      if (!text) {
-        outcome = 'empty_response';
-        throw new AiError('AI_EMPTY', 'The AI returned an empty answer. Your current problem context is preserved; use Try again to retry.', 502);
+
+      if (lastErr instanceof AiError) {
+        errorName = lastErr.name;
+        if (outcome === 'success') outcome = lastErr.code.toLowerCase();
+        throw lastErr;
       }
-      return text;
-    } catch (err) {
-      if (err instanceof AiError) {
-        errorName = err.name;
-        if (outcome === 'success') outcome = err.code.toLowerCase();
-        throw err;
-      }
-      upstreamStatus = upstreamStatusOf(err);
-      errorName = err?.name || 'Error';
+      upstreamStatus = upstreamStatusOf(lastErr);
+      errorName = lastErr?.name || 'Error';
       if (ownAbortTimerFired) {
         outcome = 'timeout';
         throw new AiError(
@@ -244,7 +261,7 @@ export function createAi(cfg, { clientFactory } = {}) {
       signal?.removeEventListener('abort', abortFromCaller);
       logModelRequest({
         requestId,
-        model: cfg.geminiModel,
+        model: usedModel,
         operation: input.operation,
         attempt,
         promptBytes,

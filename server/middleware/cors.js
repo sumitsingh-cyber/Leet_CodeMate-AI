@@ -11,7 +11,7 @@ export function corsMiddleware(cfg) {
         // Development convenience only. In production, set ALLOWED_EXTENSION_IDS.
         return cb(null, !cfg.isProduction);
       }
-      return cb(null, cfg.allowedExtensionIds.includes(id));
+      return cb(null, cfg.allowedExtensionIds.includes('*') || cfg.allowedExtensionIds.includes(id));
     },
     methods: ['GET', 'POST'],
     allowedHeaders: ['Content-Type', 'Authorization'],

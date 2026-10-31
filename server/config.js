@@ -16,7 +16,8 @@ export function loadConfig() {
     // AI provider (Google Gemini). The model name is never hardcoded:
     // pick one in Google AI Studio that your key can use.
     geminiApiKey: env.GEMINI_API_KEY || '',
-    geminiModel: env.GEMINI_MODEL || '',
+    geminiCandidateModels: (env.GEMINI_MODEL || '').split(',').map((s) => s.trim()).filter(Boolean),
+    geminiModel: (env.GEMINI_MODEL || '').split(',')[0]?.trim() || '',
     // Development-only switch: returns canned text so you can test without a key.
     mockAi: env.MOCK_AI === 'true',
 

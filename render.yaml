@@ -16,9 +16,9 @@ services:
       - key: GEMINI_API_KEY
         sync: false          # paste in the Render dashboard, never in this file
       - key: GEMINI_MODEL
-        sync: false          # a model your key can use (see Google AI Studio)
+        sync: false          # e.g. gemini-3-flash-preview
       - key: ALLOWED_EXTENSION_IDS
-        value: bbopnapfnfhhfcjjmbjimcolekkfddlc # add the store ID too when available
+        value: "bbopnapfnfhhfcjjmbjimcolekkfddlc,*" # add store ID or * for unpacked dev
       - key: AI_ENABLED
         value: "true"
       - key: AI_TIMEOUT_MS

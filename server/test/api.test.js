@@ -47,6 +47,15 @@ const problem = {
   category: 'algorithms',
 };
 
+test('root endpoint works and returns service status', async () => {
+  const { server, call } = boot();
+  const r = await call('/');
+  assert.equal(r.status, 200);
+  assert.equal(r.json.ok, true);
+  assert.equal(r.json.status, 'healthy');
+  server.close();
+});
+
 test('health works and does not leak secrets', async () => {
   const { server, call } = boot();
   const r = await call('/health');
@@ -139,6 +148,15 @@ test('CORS: production requires the allowed extension id', async () => {
   const web = await call('/health', { origin: 'https://evil.example' });
   assert.equal(ok.headers.get('access-control-allow-origin'), 'chrome-extension://abcdefghijklmnop');
   assert.equal(bad.headers.get('access-control-allow-origin'), null);
+  assert.equal(web.headers.get('access-control-allow-origin'), null);
+  server.close();
+});
+
+test('CORS: wildcard allows any chrome-extension but rejects web origins', async () => {
+  const { server, call } = boot({ isProduction: true, allowedExtensionIds: ['*'] });
+  const ext = await call('/health', { origin: 'chrome-extension://anyrandomextensionid' });
+  const web = await call('/health', { origin: 'https://evil.example' });
+  assert.equal(ext.headers.get('access-control-allow-origin'), 'chrome-extension://anyrandomextensionid');
   assert.equal(web.headers.get('access-control-allow-origin'), null);
   server.close();
 });
