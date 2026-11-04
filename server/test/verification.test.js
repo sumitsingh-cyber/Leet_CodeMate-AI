@@ -1,4 +1,4 @@
-﻿import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAi, AiError, validateGeneratedCode, verifyStructuredAnswer } from '../services/gemini.js';
 import { loadConfig } from '../config.js';
@@ -35,6 +35,25 @@ const good = {
 
 test('verifies evidence, every example, output agreement, and starter signature', () => {
   assert.equal(verifyStructuredAnswer(input, good).ok, true);
+});
+
+test('verifies custom judge output formats (e.g. LC 26: 2, nums = [1,2,_])', () => {
+  const customJudgeInput = {
+    ...input,
+    slug: 'remove-duplicates-from-sorted-array',
+    title: 'Remove Duplicates from Sorted Array',
+    starterCode: 'class Solution { public: int removeDuplicates(vector<int>& nums) {} };',
+    statement: 'Given an integer array nums sorted in non-decreasing order, remove the duplicates in-place such that each unique element appears only once.',
+    examples: [{ index: 1, input: 'nums = [1,1,2]', output: '2, nums = [1,2,_]', explanation: '' }],
+  };
+  const customJudgeAnswer = {
+    statementEvidence: ['remove the duplicates in-place such that each unique element appears only once'],
+    requirements: ['Remove duplicates in-place and return k'],
+    exampleChecks: [{ example: 1, expected: '2, nums = [1,2,_]', got: '2', match: true }],
+    code: 'class Solution { public: int removeDuplicates(vector<int>& nums) { return 2; } };',
+  };
+  const result = verifyStructuredAnswer(customJudgeInput, customJudgeAnswer);
+  assert.equal(result.ok, true, result.reason);
 });
 
 test('rejects missing or mismatched example checks and unsupported evidence', () => {

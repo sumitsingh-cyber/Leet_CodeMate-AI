@@ -30,6 +30,54 @@ function logModelRequest({ requestId, model, operation, attempt, promptBytes, ti
 }
 
 const normalizeText = (value) => String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+function extractPrimaryValue(str) {
+  const s = String(str || '').trim();
+  if (s.startsWith('[') || s.startsWith('{')) return s;
+  // Handles custom judge notes like "2, nums = [1,2,_]" or "2; ..."
+  const commaMatch = s.match(/^([^,;]+)(?:[,;]|\s+[a-zA-Z_]\w*\s*=)/i);
+  if (commaMatch && commaMatch[1].trim()) return commaMatch[1].trim();
+  // Handles "k = 2, ..."
+  const varMatch = s.match(/^[a-zA-Z_]\w*\s*=\s*([^,;]+)/i);
+  if (varMatch && varMatch[1].trim()) return varMatch[1].trim();
+  return s;
+}
+
+function normalizeOutput(val) {
+  return String(val || '')
+    .toLowerCase()
+    .replace(/\s*([,:\[\]{}()=;])\s*/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function outputsMatch(got, expected) {
+  const normGot = normalizeOutput(got);
+  const normExp = normalizeOutput(expected);
+  if (normGot === normExp) return true;
+
+  const primGot = normalizeOutput(extractPrimaryValue(got));
+  const primExp = normalizeOutput(extractPrimaryValue(expected));
+  if (normGot === primExp || primGot === normExp || primGot === primExp) return true;
+
+  if (primExp.length >= 1 && normGot.split(/[^a-z0-9_.-]/i).includes(primExp)) return true;
+  if (primGot.length >= 1 && normExp.split(/[^a-z0-9_.-]/i).includes(primGot)) return true;
+
+  return false;
+}
+
+function statementHasPhrase(statement, phrase) {
+  const normStmt = normalizeText(statement);
+  const normPhrase = normalizeText(phrase);
+  if (normStmt.includes(normPhrase)) return true;
+
+  // Flexible check ignoring punctuation in case markdown or quotes differ slightly
+  const cleanStmt = normStmt.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const cleanPhrase = normPhrase.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (cleanPhrase.length >= 3 && cleanStmt.includes(cleanPhrase)) return true;
+
+  return false;
+}
 const escapeRegExp = (value) => value.replace(/[.*+?^\x24{}()|[\]\\]/g, '\\$&');
 const FENCE = String.fromCharCode(96).repeat(3);
 
@@ -47,9 +95,11 @@ function expectedNames(starterCode) {
 }
 
 export function validateGeneratedCode(input, answer) {
-  const code = String(answer.code || '').trim();
+  let code = String(answer.code || '').trim();
   if (!code) return { ok: false, reason: 'The code field is empty.' };
-  if (new RegExp('^\\s*' + FENCE).test(code)) return { ok: false, reason: 'The code field contains Markdown fences.' };
+  code = code.replace(/^```[a-zA-Z0-9_-]*\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+  answer.code = code;
+  if (!code) return { ok: false, reason: 'The code field is empty.' };
 
   if (input.category === 'sql') {
     if (/\bclass\s+\w+|\bdef\s+\w+\s*\(|#include/i.test(code)) return { ok: false, reason: 'The SQL answer has a non-SQL language wrapper.' };
@@ -86,23 +136,25 @@ export function validateGeneratedCode(input, answer) {
 export function verifyStructuredAnswer(input, answer) {
   if (!answer || typeof answer !== 'object') return { ok: false, reason: 'The response was not a JSON object.' };
   if (!Array.isArray(answer.statementEvidence) || answer.statementEvidence.length === 0) return { ok: false, reason: 'No statement evidence was returned.' };
-  const statement = normalizeText(input.statement);
   for (const phrase of answer.statementEvidence) {
-    if (typeof phrase !== 'string' || phrase.trim().length < 3 || !statement.includes(normalizeText(phrase))) return { ok: false, reason: 'Statement evidence was not found in the current statement.' };
+    if (typeof phrase !== 'string' || phrase.trim().length < 3 || !statementHasPhrase(input.statement, phrase)) {
+      return { ok: false, reason: 'Statement evidence was not found in the current statement.' };
+    }
   }
   if (!Array.isArray(answer.requirements) || answer.requirements.length === 0 || answer.requirements.some((item) => typeof item !== 'string' || !item.trim())) return { ok: false, reason: 'The response did not summarize the problem requirements.' };
   if (!Array.isArray(answer.exampleChecks)) return { ok: false, reason: 'The response did not check the examples.' };
   const checks = new Map();
   for (const check of answer.exampleChecks) {
-    if (!check || !Number.isInteger(check.example) || checks.has(check.example)) return { ok: false, reason: 'Example checks were malformed or duplicated.' };
-    checks.set(check.example, check);
+    const exIdx = check && Number(check.example);
+    if (!check || !Number.isInteger(exIdx) || checks.has(exIdx)) return { ok: false, reason: 'Example checks were malformed or duplicated.' };
+    checks.set(exIdx, check);
   }
   for (const example of input.examples) {
     const check = checks.get(example.index);
     if (!check) return { ok: false, reason: 'Example ' + example.index + ' was not checked.' };
-    if (normalizeText(check.expected) !== normalizeText(example.output)) return { ok: false, reason: 'Example ' + example.index + ' expected output did not match the statement.' };
+    if (!outputsMatch(check.expected, example.output)) return { ok: false, reason: 'Example ' + example.index + ' expected output did not match the statement.' };
     if (typeof check.got !== 'string' || !check.got.trim()) return { ok: false, reason: 'Example ' + example.index + ' has no traced output.' };
-    if (normalizeText(check.got) !== normalizeText(example.output)) return { ok: false, reason: 'Example ' + example.index + ' hand-traced output did not match the expected output.' };
+    if (!outputsMatch(check.got, example.output) && !outputsMatch(check.got, check.expected)) return { ok: false, reason: 'Example ' + example.index + ' hand-traced output did not match the expected output.' };
     if (check.match !== true) return { ok: false, reason: 'Example ' + example.index + ' did not match: expected ' + example.output + ', got ' + check.got + '.' };
   }
   if (checks.size !== input.examples.length) return { ok: false, reason: 'The response included checks that do not match the parsed examples.' };
@@ -219,7 +271,7 @@ export function createAi(cfg, { clientFactory } = {}) {
           if (ownAbortTimerFired || signal?.aborted) break;
           // If the model is experiencing temporary high demand (503) or is unavailable (404),
           // and another candidate model was specified in GEMINI_MODEL, fall back to it.
-          if (([404, 408, 502, 503, 504].includes(status)) && modelIdx + 1 < candidateModels.length) {
+          if (([429, 404, 408, 502, 503, 504].includes(status)) && modelIdx + 1 < candidateModels.length) {
             console.warn(`[gemini] Model ${currentModel} returned ${status}, falling back to ${candidateModels[modelIdx + 1]}`);
             continue;
           }
